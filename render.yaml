@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: pubmed-search
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: ACCESS_PASSWORD
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: NCBI_API_KEY
+        sync: false
+      - key: NCBI_EMAIL
+        sync: false
+    scaling:
+      minInstances: 1
+      maxInstances: 3
