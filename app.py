@@ -1588,7 +1588,7 @@ def create_templates():
 </head>
 <body>
     <div class="login-container">
-        <div class="logo">Pubmed (Taylor's Edition)</div>
+        <div class="logo">Pubmed\n(Taylor's Version)</div>
         <div class="subtitle">Enter password to access</div>
         
         {% if error %}
@@ -2521,12 +2521,10 @@ def create_templates():
                 <br><br>
                 <strong>Features:</strong>
                 <ul style="margin-left: 20px; margin-top: 10px;">
-                    <li>⚡ AI relevance ranking and synthesis</li>
-                    <li>📊 Journal impact factor integration</li>
-                    <li>🎯 Smart query generation</li>
-                    <li>📋 Copy-to-clipboard functionality</li>
-                    <li>📥 RIS export for reference managers</li>
-                    <li>🔐 Secure password protection</li>
+                    <li>AI relevance ranking and synthesis</li>
+                    <li>Journal impact factor integration</li>
+                    <li>Smart query generation</li>
+                    <li>RIS export for reference managers</li>
                 </ul>
             </div>
             <div class="modal-footer">
