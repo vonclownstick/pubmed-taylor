@@ -1588,7 +1588,7 @@ def create_templates():
 </head>
 <body>
     <div class="login-container">
-        <div class="logo">🔬 Pubmed Research</div>
+        <div class="logo">Pubmed (Taylor's Edition)</div>
         <div class="subtitle">Enter password to access</div>
         
         {% if error %}
@@ -1614,7 +1614,6 @@ def create_templates():
         
         <div class="footer">
             &copy; 2025 MGB Center for Quantitative Health<br>
-            Secure research literature access
         </div>
     </div>
     
