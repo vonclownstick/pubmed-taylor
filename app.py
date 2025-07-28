@@ -1260,13 +1260,16 @@ async def login_submit(request: Request, password: str = Form(...)):
         AUTHENTICATED_SESSIONS.add(session_token)
         
         response = RedirectResponse(url="/", status_code=302)
+        
+        # Use secure settings for production
+        is_production = ENVIRONMENT == "production"
         response.set_cookie(
             key="session_token",
             value=session_token,
             max_age=86400 * 7,
             httponly=True,
-            secure=False,  # <-- Change this to False for local development
-            samesite="lax"  # <-- Also change from "strict" to "lax"
+            secure=is_production,  # Only HTTPS in production
+            samesite="strict" if is_production else "lax"
         )
         return response
     else:
