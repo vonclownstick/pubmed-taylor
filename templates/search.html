@@ -335,6 +335,222 @@
             localStorage.setItem('theme', newTheme);
         });
 
+        // Function to convert PMID references to clickable links
+        function convertPMIDsToLinks(text, resultsData) {
+            // Create a map of PMID to result data for quick lookup
+            const pmidMap = {};
+            if (resultsData && Array.isArray(resultsData)) {
+                resultsData.forEach(result => {
+                    pmidMap[result.pmid] = result;
+                });
+            }
+            
+            // Simple approach: replace all PMID: ##### patterns globally
+            return text.replace(/PMID:\s*(\d+)/g, (match, pmid) => {
+                return `<span class="pmid-citation" data-pmid="${pmid}">PMID: ${pmid}</span>`;
+            });
+        }
+
+        // Function to create tooltip content
+        function createTooltipContent(pmid, resultData) {
+            if (!resultData) {
+                return `
+                    <div class="tooltip-title">
+                        <a href="https://pubmed.ncbi.nlm.nih.gov/${pmid}/" target="_blank" rel="noopener">
+                            PMID: ${pmid}
+                        </a>
+                    </div>
+                    <div class="tooltip-details">
+                        <p class="tooltip-authors">Loading...</p>
+                    </div>
+                `;
+            }
+            
+            const {
+                title = "Unknown Title",
+                authors = "Unknown Authors",
+                journal = "Unknown Journal",
+                year = "Unknown Year",
+                abstract = "",
+                rank = "N/A",
+                ai_rank = null,
+                journal_impact = 0,
+                weight = 0,
+                combined_score = 0
+            } = resultData;
+            
+            // Truncate abstract for tooltip
+            const truncatedAbstract = abstract && abstract.length > 200 
+                ? abstract.substring(0, 200) + "..." 
+                : abstract;
+            
+            return `
+                <div class="tooltip-header">
+                    <div class="tooltip-meta">
+                        <span class="tooltip-rank">#${rank}</span>
+                        ${ai_rank ? `<span class="tooltip-ai-rank">AI: #${ai_rank}</span>` : ''}
+                    </div>
+                    <div class="tooltip-scores">
+                        ${journal_impact > 0 ? `<span class="tooltip-impact-score" title="Journal Impact Factor">IF: ${journal_impact.toFixed(1)}</span>` : ''}
+                        <span class="tooltip-citation-score" title="Citations per Year">${weight.toFixed(1)}</span>
+                    </div>
+                </div>
+                
+                <div class="tooltip-title">
+                    <a href="https://pubmed.ncbi.nlm.nih.gov/${pmid}/" target="_blank" rel="noopener">
+                        ${title}
+                    </a>
+                </div>
+                
+                <div class="tooltip-details">
+                    <p class="tooltip-authors">${authors}</p>
+                    <div class="tooltip-publication">
+                        <span class="tooltip-journal">${journal}</span>
+                        <span class="tooltip-year">(${year})</span>
+                        <span class="tooltip-pmid-link">
+                            <a href="https://pubmed.ncbi.nlm.nih.gov/${pmid}/" target="_blank" rel="noopener">
+                                PMID: ${pmid}
+                            </a>
+                        </span>
+                    </div>
+                </div>
+                
+                ${truncatedAbstract ? `
+                    <div class="tooltip-abstract">
+                        <p>${truncatedAbstract}</p>
+                    </div>
+                ` : ''}
+                
+                <div class="tooltip-footer">
+                    <div class="tooltip-score" title="Combined score: recency + citations + impact factor">
+                        Score: ${combined_score || 0}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Function to position tooltip
+        function positionTooltip(tooltip, targetElement) {
+            const targetRect = targetElement.getBoundingClientRect();
+            const tooltipRect = tooltip.getBoundingClientRect();
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+            
+            let left = targetRect.left + (targetRect.width / 2) - (tooltipRect.width / 2);
+            let top = targetRect.top - tooltipRect.height - 10; // Primary position: 10px above the link
+            
+            // Adjust horizontal position if tooltip goes off screen
+            if (left < 10) {
+                left = 10;
+            } else if (left + tooltipRect.width > viewportWidth - 10) {
+                left = viewportWidth - tooltipRect.width - 10;
+            }
+            
+            // If tooltip goes off screen above, position it below instead
+            if (top < 10) {
+                top = targetRect.bottom + 10; // Fallback: 10px below the link
+            }
+            
+            tooltip.style.left = `${left}px`;
+            tooltip.style.top = `${top}px`;
+        }
+
+        // Function to setup PMID hover functionality
+        function setupPMIDHover() {
+            let currentTooltip = null;
+            let hoverTimeout = null;
+            
+            // Create tooltip element
+            const tooltip = document.createElement('div');
+            tooltip.className = 'pmid-tooltip';
+            document.body.appendChild(tooltip);
+            
+            // Handle mouse enter on PMID links
+            function handleMouseEnter(event) {
+                const pmidElement = event.target;
+                const pmid = pmidElement.dataset.pmid;
+                
+                if (!pmid) return;
+                
+                // Clear any existing timeout
+                if (hoverTimeout) {
+                    clearTimeout(hoverTimeout);
+                }
+                
+                // Find the result data for this PMID
+                const resultData = currentResults.find(result => result.pmid === pmid);
+                
+                // Create tooltip content
+                tooltip.innerHTML = createTooltipContent(pmid, resultData);
+                
+                // Position and show tooltip with delay
+                hoverTimeout = setTimeout(() => {
+                    positionTooltip(tooltip, pmidElement);
+                    tooltip.classList.add('show');
+                    currentTooltip = tooltip;
+                }, 200); // 200ms delay before showing
+            }
+            
+            // Handle mouse leave on PMID links
+            function handleMouseLeave(event) {
+                if (hoverTimeout) {
+                    clearTimeout(hoverTimeout);
+                }
+                
+                // Hide tooltip with delay
+                setTimeout(() => {
+                    if (currentTooltip && !currentTooltip.matches(':hover')) {
+                        currentTooltip.classList.remove('show');
+                        currentTooltip = null;
+                    }
+                }, 100); // 100ms delay before hiding
+            }
+            
+            // Handle mouse enter on tooltip (to keep it visible)
+            tooltip.addEventListener('mouseenter', () => {
+                if (hoverTimeout) {
+                    clearTimeout(hoverTimeout);
+                }
+            });
+            
+            // Handle mouse leave on tooltip
+            tooltip.addEventListener('mouseleave', () => {
+                tooltip.classList.remove('show');
+                currentTooltip = null;
+            });
+            
+            // Add event listeners to analysis content
+            const analysisContent = document.getElementById('analysisContent');
+            if (analysisContent) {
+                analysisContent.addEventListener('mouseenter', (event) => {
+                    if (event.target.classList.contains('pmid-citation')) {
+                        handleMouseEnter(event);
+                    }
+                }, true);
+                
+                analysisContent.addEventListener('mouseleave', (event) => {
+                    if (event.target.classList.contains('pmid-citation')) {
+                        handleMouseLeave(event);
+                    }
+                }, true);
+            }
+            
+            // Hide tooltip on scroll or resize
+            window.addEventListener('scroll', () => {
+                if (currentTooltip) {
+                    currentTooltip.classList.remove('show');
+                    currentTooltip = null;
+                }
+            });
+            
+            window.addEventListener('resize', () => {
+                if (currentTooltip) {
+                    currentTooltip.classList.remove('show');
+                    currentTooltip = null;
+                }
+            });
+        }
+
         // Sorting functionality
         function setupSorting() {
             const sortButtons = document.querySelectorAll('.sort-btn');
@@ -434,8 +650,9 @@
                         // Hide loading
                         analysisStatus.style.display = 'none';
                         
-                        // Display synthesis
-                        const synthesisHtml = data.synthesis.replace(/\n\n/g, '</p><p>');
+                        // Convert PMID references to clickable links and display synthesis
+                        const enhancedSynthesis = convertPMIDsToLinks(data.synthesis, data.results || currentResults);
+                        const synthesisHtml = enhancedSynthesis.replace(/\n\n/g, '</p><p>');
                         analysisContent.innerHTML = `<p>${synthesisHtml}</p>`;
                         
                         // Store synthesis data
@@ -454,6 +671,10 @@
                             // Switch to AI rank sort
                             document.querySelector('.sort-btn[data-sort="ai-rank"]').click();
                         }
+                        
+                        // Setup PMID hover functionality after content is loaded
+                        setTimeout(setupPMIDHover, 100);
+                        
                     } else {
                         throw new Error(data.error || 'Analysis failed');
                     }
@@ -624,6 +845,11 @@
                 searchBtnIcon.style.animation = 'spin 1s linear infinite';
             });
         }
+
+        // Initialize PMID hover functionality when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            setupPMIDHover();
+        });
     </script>
 </body>
 </html>
