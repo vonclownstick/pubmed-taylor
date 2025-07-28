@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PubMed (Taylor's Version)</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.1/lucide.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <div class="logo-section" onclick="openAboutModal()" style="cursor: pointer;">
+                    <div class="logo-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="currentColor" stroke-width="2"/>
+                            <path d="m8 11 2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                    <h1 class="logo-text">PubMed (Taylor's Version)</h1>
+                </div>
+                
+                <div class="header-actions">
+                    <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+                        <svg class="theme-icon theme-icon-light" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="5"/>
+                            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                        </svg>
+                        <svg class="theme-icon theme-icon-dark" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                        </svg>
+                    </button>
+                    
+                    <form method="post" action="/logout" style="display: inline;">
+                        <button type="submit" class="logout-btn">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                                <polyline points="16,17 21,12 16,7"/>
+                                <line x1="21" y1="12" x2="9" y2="12"/>
+                            </svg>
+                            Logout
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Search Section -->
+            <div class="search-section">
+                <div class="search-container">
+                    <div class="search-title">
+                        <h2>Stop Searching Like It's 1989</h2>
+                        <p>AI-powered scientific literature discovery and ranking</p>
+                    </div>
+                    
+                    <form method="post" action="/search" class="search-form">
+                        <div class="search-input-group">
+                            <div class="search-input-wrapper">
+                                <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="11" cy="11" r="8"/>
+                                    <path d="m21 21-4.35-4.35"/>
+                                </svg>
+                                <input 
+                                    type="text" 
+                                    name="query" 
+                                    value="{{ query }}" 
+                                    placeholder="Describe your research question..."
+                                    class="search-input"
+                                    required
+                                    autocomplete="off"
+                                >
+                            </div>
+                            
+                            <div class="search-options-inline">
+                                <div class="option-group">
+                                    <label for="max_results">Results</label>
+                                    <select name="max_results" id="max_results" class="select-input">
+                                        <option value="25" {% if max_results == 25 %}selected{% endif %}>25</option>
+                                        <option value="50" {% if max_results == 50 or not max_results %}selected{% endif %}>50</option>
+                                        <option value="100" {% if max_results == 100 %}selected{% endif %}>100</option>
+                                        <option value="200" {% if max_results == 200 %}selected{% endif %}>200</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <button type="submit" class="search-btn">
+                                <span>Search</span>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Results Section -->
+            {% if results or error %}
+            <div class="results-section">
+                {% if error %}
+                <div class="error-card">
+                    <div class="error-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="15" y1="9" x2="9" y2="15"/>
+                            <line x1="9" y1="9" x2="15" y2="15"/>
+                        </svg>
+                    </div>
+                    <h3>Search Error</h3>
+                    <p>{{ error }}</p>
+                </div>
+                {% elif results %}
+                <!-- Results Header -->
+                <div class="results-header">
+                    <div class="results-stats">
+                        <h3>Search Results</h3>
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <span class="stat-value">{{ total_results }}</span>
+                                <span class="stat-label">Papers Found</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-value">{{ "%.1f"|format(search_time) }}s</span>
+                                <span class="stat-label">Search Time</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-value">{{ mean_score }}</span>
+                                <span class="stat-label">Mean Score</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="results-actions">
+                        <button class="action-btn" id="analyzeBtn">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 11H1v3h8v3l3-4-3-4v2zM22 12l-3-4v2h-8v3h8v3l3-4z"/>
+                            </svg>
+                            AI Analysis
+                        </button>
+                        
+                        <button class="action-btn" id="exportBtn">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="7,10 12,15 17,10"/>
+                                <line x1="12" y1="15" x2="12" y2="3"/>
+                            </svg>
+                            Export RIS
+                        </button>
+                    </div>
+                </div>
+
+                <!-- AI Analysis Section (Initially Hidden) -->
+                <div class="ai-analysis-section" id="aiAnalysisSection" style="display: none;">
+                    <div class="analysis-card">
+                        <div class="analysis-header">
+                            <h4>AI Literature Synthesis</h4>
+                            <div class="analysis-actions">
+                                <div class="analysis-status" id="analysisStatus">
+                                    <div class="loading-spinner"></div>
+                                    <span>Analyzing literature...</span>
+                                </div>
+                                <button class="action-btn small" id="downloadSynthesisBtn" style="display: none;">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                        <polyline points="7,10 12,15 17,10"/>
+                                        <line x1="12" y1="15" x2="12" y2="3"/>
+                                    </svg>
+                                    Download
+                                </button>
+                            </div>
+                        </div>
+                        <div class="analysis-content" id="analysisContent"></div>
+                    </div>
+                </div>
+
+                <!-- Sorting Controls -->
+                <div class="sorting-controls">
+                    <div class="sorting-label">Sort by:</div>
+                    <div class="sorting-buttons">
+                        <button class="sort-btn active" data-sort="date">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                <line x1="16" y1="2" x2="16" y2="6"/>
+                                <line x1="8" y1="2" x2="8" y2="6"/>
+                                <line x1="3" y1="10" x2="21" y2="10"/>
+                            </svg>
+                            Date
+                        </button>
+                        <button class="sort-btn" data-sort="citations">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+                            </svg>
+                            Citations
+                        </button>
+                        <button class="sort-btn" data-sort="ai-rank" id="aiRankSortBtn" style="display: none;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/>
+                            </svg>
+                            AI Rank
+                        </button>
+                        <button class="sort-btn" data-sort="total-weight">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
+                            Total Score
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Results List -->
+                <div class="results-list" id="resultsList">
+                    {% for result in results %}
+                    <article class="result-card" data-pmid="{{ result.pmid }}" 
+                             data-year="{{ result.year }}" 
+                             data-citations="{{ result.weight }}" 
+                             data-impact="{{ result.journal_impact or 0 }}"
+                             data-ai-rank="{{ result.ai_rank or 999 }}"
+                             data-total-weight="{{ result.combined_score or 0 }}">
+                        <div class="result-header">
+                            <div class="result-meta">
+                                <span class="result-rank">#{{ result.rank }}</span>
+                                {% if result.ai_rank %}
+                                <span class="ai-rank">AI: #{{ result.ai_rank }}</span>
+                                {% endif %}
+                                <span class="result-strategy">{{ result.strategy }}</span>
+                            </div>
+                            
+                            <div class="result-scores">
+                                {% if result.journal_impact > 0 %}
+                                <span class="impact-score" title="Journal Impact Factor">
+                                    IF: {{ "%.1f"|format(result.journal_impact) }}
+                                </span>
+                                {% endif %}
+                                <span class="citation-score" title="Citations per Year">
+                                    {{ "%.1f"|format(result.weight) }}
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <h3 class="result-title">
+                            <a href="https://pubmed.ncbi.nlm.nih.gov/{{ result.pmid }}/" target="_blank" rel="noopener">
+                                {{ result.title }}
+                            </a>
+                        </h3>
+                        
+                        <div class="result-details">
+                            <p class="result-authors">{{ result.authors }}</p>
+                            <div class="result-publication">
+                                <span class="journal-name">{{ result.journal }}</span>
+                                <span class="publication-year">({{ result.year }})</span>
+                                <span class="pmid-link">
+                                    <a href="https://pubmed.ncbi.nlm.nih.gov/{{ result.pmid }}/" target="_blank" rel="noopener">
+                                        PMID: {{ result.pmid }}
+                                    </a>
+                                </span>
+                            </div>
+                        </div>
+                        
+                        {% if result.abstract %}
+                        <div class="result-abstract">
+                            <p>{{ result.abstract[:300] }}{% if result.abstract|length > 300 %}...{% endif %}</p>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="result-footer">
+                            <div class="total-weight-score" title="Combined score: recency + citations + impact factor">
+                                Score: {{ result.combined_score or 0 }}
+                            </div>
+                        </div>
+                    </article>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+        </main>
+        
+        <!-- Footer -->
+        <footer class="app-footer">
+            <div class="footer-content">
+                <p>&copy; 2025 MGB Center for Quantitative Health. Because the robots will get us eventually but probably not today.</p>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Hidden forms for actions -->
+    <form id="analyzeForm" method="post" action="/analyze" style="display: none;">
+        <input type="hidden" name="query" value="{{ query }}">
+        <input type="hidden" name="results_json" id="resultsJson">
+    </form>
+
+    <form id="exportForm" method="post" action="/download-ris" style="display: none;">
+        <input type="hidden" name="query" value="{{ query }}">
+        <input type="hidden" name="max_results" value="{{ max_results or 100 }}">
+    </form>
+
+    <!-- About Modal -->
+    <div id="aboutModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeAboutModal()">&times;</span>
+            <h2>PubMed (Taylor's Version)</h2>
+            <p class="modal-subtitle">AI-driven search and reference ranking for tortured poets</p>
+            <p class="modal-text">&copy; 2025 MGB Center for Quantitative Health. Because the robots will get us eventually but probably not today.</p>
+            <p class="modal-version">Version: July 28, 2025</p>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let currentResults = {{ results | tojson | safe }};
+        let currentSynthesis = '';
+        let citedPmids = [];
+
+        // Theme toggle functionality
+        const themeToggle = document.getElementById('themeToggle');
+        const body = document.body;
+        
+        // Check for saved theme preference or default to dark
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        body.setAttribute('data-theme', savedTheme);
+        
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = body.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            body.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+        });
+
+        // Sorting functionality
+        function setupSorting() {
+            const sortButtons = document.querySelectorAll('.sort-btn');
+            const resultsList = document.getElementById('resultsList');
+            
+            sortButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const sortType = button.dataset.sort;
+                    
+                    // Update active button
+                    sortButtons.forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+                    
+                    // Sort results
+                    sortResults(sortType);
+                });
+            });
+            
+            // Initial sort by date (most recent first)
+            sortResults('date');
+        }
+
+        function sortResults(sortType) {
+            const resultsList = document.getElementById('resultsList');
+            const resultCards = Array.from(resultsList.children);
+            
+            resultCards.sort((a, b) => {
+                switch (sortType) {
+                    case 'date':
+                        return parseInt(b.dataset.year) - parseInt(a.dataset.year);
+                    case 'citations':
+                        return parseFloat(b.dataset.citations) - parseFloat(a.dataset.citations);
+                    case 'ai-rank':
+                        return parseInt(a.dataset.aiRank) - parseInt(b.dataset.aiRank);
+                    case 'total-weight':
+                        return parseFloat(b.dataset.totalWeight) - parseFloat(a.dataset.totalWeight);
+                    default:
+                        return 0;
+                }
+            });
+            
+            // Reorder in DOM
+            resultCards.forEach(card => resultsList.appendChild(card));
+        }
+
+        // AI Analysis functionality
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const exportBtn = document.getElementById('exportBtn');
+        const downloadSynthesisBtn = document.getElementById('downloadSynthesisBtn');
+        const aiAnalysisSection = document.getElementById('aiAnalysisSection');
+        const analysisStatus = document.getElementById('analysisStatus');
+        const analysisContent = document.getElementById('analysisContent');
+        const aiRankSortBtn = document.getElementById('aiRankSortBtn');
+
+        if (analyzeBtn) {
+            analyzeBtn.addEventListener('click', async () => {
+                if (!currentResults || currentResults.length === 0) {
+                    alert('No results to analyze');
+                    return;
+                }
+
+                // Show analysis section
+                aiAnalysisSection.style.display = 'block';
+                analysisStatus.style.display = 'flex';
+                analysisContent.innerHTML = '';
+                analyzeBtn.disabled = true;
+                downloadSynthesisBtn.style.display = 'none';
+
+                // Prepare results data
+                const resultsData = currentResults.map(r => ({
+                    pmid: r.pmid,
+                    title: r.title,
+                    authors: r.authors,
+                    journal: r.journal,
+                    year: r.year,
+                    abstract: r.abstract || '',
+                    weight: r.weight,
+                    strategy: r.strategy,
+                    rank: r.rank,
+                    journal_impact: r.journal_impact || 0,
+                    issn: r.issn || '',
+                    combined_score: r.combined_score || 0
+                }));
+
+                document.getElementById('resultsJson').value = JSON.stringify(resultsData);
+
+                try {
+                    const formData = new FormData(document.getElementById('analyzeForm'));
+                    const response = await fetch('/analyze', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        // Hide loading
+                        analysisStatus.style.display = 'none';
+                        
+                        // Display synthesis
+                        const synthesisHtml = data.synthesis.replace(/\n\n/g, '</p><p>');
+                        analysisContent.innerHTML = `<p>${synthesisHtml}</p>`;
+                        
+                        // Store synthesis data
+                        currentSynthesis = data.synthesis;
+                        citedPmids = extractCitedPmids(data.synthesis);
+                        
+                        // Show download button
+                        downloadSynthesisBtn.style.display = 'inline-flex';
+                        
+                        // Show AI rank sort button
+                        aiRankSortBtn.style.display = 'inline-flex';
+                        
+                        // Update results order if AI ranking provided
+                        if (data.results) {
+                            updateResultsOrder(data.results);
+                            // Switch to AI rank sort
+                            document.querySelector('.sort-btn[data-sort="ai-rank"]').click();
+                        }
+                    } else {
+                        throw new Error(data.error || 'Analysis failed');
+                    }
+                } catch (error) {
+                    analysisStatus.style.display = 'none';
+                    analysisContent.innerHTML = `<div class="error-message">Analysis failed: ${error.message}</div>`;
+                } finally {
+                    analyzeBtn.disabled = false;
+                }
+            });
+        }
+
+        // Download synthesis functionality
+        if (downloadSynthesisBtn) {
+            downloadSynthesisBtn.addEventListener('click', async () => {
+                // Download text file
+                const textForm = document.createElement('form');
+                textForm.method = 'POST';
+                textForm.action = '/download-synthesis-text';
+                textForm.innerHTML = `
+                    <input type="hidden" name="query" value="${document.querySelector('input[name="query"]').value}">
+                    <input type="hidden" name="synthesis_text" value="${currentSynthesis}">
+                `;
+                document.body.appendChild(textForm);
+                textForm.submit();
+                document.body.removeChild(textForm);
+                
+                // Download RIS file (small delay)
+                setTimeout(async () => {
+                    try {
+                        const formData = new FormData();
+                        formData.append('cited_pmids', JSON.stringify(citedPmids));
+                        
+                        const response = await fetch('/download-synthesis-ris', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        
+                        if (response.ok) {
+                            const blob = await response.blob();
+                            const url = window.URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `cited_references_${new Date().toISOString().slice(0,19).replace(/:/g,'')}.ris`;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            window.URL.revokeObjectURL(url);
+                        } else {
+                            console.error('Download failed');
+                        }
+                    } catch (error) {
+                        console.error('Download error:', error);
+                    }
+                }, 500);
+            });
+        }
+
+        // Export RIS functionality
+        if (exportBtn) {
+            exportBtn.addEventListener('click', () => {
+                document.getElementById('exportForm').submit();
+            });
+        }
+
+        function extractCitedPmids(synthesis) {
+            const pmidRegex = /PMID:\s*(\d+)/g;
+            const pmids = [];
+            let match;
+            
+            while ((match = pmidRegex.exec(synthesis)) !== null) {
+                pmids.push(match[1]);
+            }
+            
+            return [...new Set(pmids)]; // Remove duplicates
+        }
+
+        function updateResultsOrder(newResults) {
+            const resultsList = document.getElementById('resultsList');
+            const resultCards = Array.from(resultsList.children);
+            
+            // Create a map of PMID to AI rank
+            const aiRanks = {};
+            newResults.forEach(result => {
+                if (result.ai_rank) {
+                    aiRanks[result.pmid] = result.ai_rank;
+                }
+            });
+            
+            // Update AI rank displays and data attributes
+            resultCards.forEach(card => {
+                const pmid = card.getAttribute('data-pmid');
+                const aiRankElement = card.querySelector('.ai-rank');
+                
+                if (aiRanks[pmid]) {
+                    card.setAttribute('data-ai-rank', aiRanks[pmid]);
+                    
+                    if (aiRankElement) {
+                        aiRankElement.textContent = `AI: #${aiRanks[pmid]}`;
+                    } else {
+                        const metaDiv = card.querySelector('.result-meta');
+                        const aiRankSpan = document.createElement('span');
+                        aiRankSpan.className = 'ai-rank';
+                        aiRankSpan.textContent = `AI: #${aiRanks[pmid]}`;
+                        metaDiv.appendChild(aiRankSpan);
+                    }
+                }
+            });
+        }
+
+        // Initialize sorting when page loads
+        if (currentResults && currentResults.length > 0) {
+            setupSorting();
+        }
+
+        // Auto-focus search input
+        const searchInput = document.querySelector('.search-input');
+        if (searchInput && !searchInput.value) {
+            searchInput.focus();
+        }
+
+        // Smooth scroll to results
+        {% if results %}
+        setTimeout(() => {
+            const resultsSection = document.querySelector('.results-section');
+            if (resultsSection) {
+                resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }, 100);
+        {% endif %}
+
+        // Modal functions
+        function openAboutModal() {
+            document.getElementById('aboutModal').style.display = 'block';
+        }
+
+        function closeAboutModal() {
+            document.getElementById('aboutModal').style.display = 'none';
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('aboutModal');
+            if (event.target == modal) {
+                modal.style.display = 'none';
+            }
+        }
+
+        // Search loading animation
+        const searchForm = document.querySelector('.search-form');
+        const searchBtn = document.querySelector('.search-btn');
+        const searchBtnText = searchBtn.querySelector('span');
+        const searchBtnIcon = searchBtn.querySelector('svg');
+
+        if (searchForm) {
+            searchForm.addEventListener('submit', () => {
+                // Disable button and show loading state
+                searchBtn.disabled = true;
+                searchBtnText.textContent = 'Searching...';
+                
+                // Replace arrow icon with spinner
+                searchBtnIcon.innerHTML = `
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="31.416" stroke-dashoffset="31.416">
+                        <animate attributeName="stroke-dasharray" dur="2s" values="0 31.416;15.708 15.708;0 31.416" repeatCount="indefinite"/>
+                        <animate attributeName="stroke-dashoffset" dur="2s" values="0;-15.708;-31.416" repeatCount="indefinite"/>
+                    </circle>
+                `;
+                searchBtnIcon.style.animation = 'spin 1s linear infinite';
+            });
+        }
+    </script>
+</body>
+</html>
