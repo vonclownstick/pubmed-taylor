@@ -2,7 +2,6 @@
 """
 Pubmed (Taylor's Version) - Enhanced with AI Analysis and Password Protection
 Smart concentric search with LLM-generated queries, citation weighting, and AI-powered relevance ranking
-OPTIMIZED VERSION - 3-5x Performance Improvement
 """
 import asyncio
 import csv
@@ -64,33 +63,12 @@ ACCESS_PASSWORD = os.getenv("ACCESS_PASSWORD", "Cassowary")
 DEBUG_JOURNALS = os.getenv("DEBUG_JOURNALS", "false").lower() in ["true", "1", "yes"]
 UPDATE_MAPPINGS = os.getenv("UPDATE_MAPPINGS", "true").lower() in ["true", "1", "yes"]
 
+
 NOW = dt.datetime.now().year
 NCBI_TIMEOUT = 15
 BATCH_SIZE = 800
 MAX_CONCURRENT = 10
 RATE_LIMIT_SEC = 0.02 if NCBI_API_KEY else 0.1
-
-# ---------- OPTIMIZATION ADDITIONS ----------
-# Pre-compiled regex patterns for better performance
-TITLE_CLEANUP_REGEX = re.compile(r'[^\w\s]')
-WHITESPACE_REGEX = re.compile(r'\s+')
-
-# Enhanced caching
-TFIDF_CACHE = {}
-SIMILARITY_CACHE = {}
-LLM_QUERY_CACHE = {}
-
-# Configuration for optimized processing
-OPTIMIZED_CONFIG = {
-    "TITLE_SEMAPHORE": 15,        # Up from 6
-    "TITLE_BATCH_SIZE": 200,      # Down from 300 for better parallelism  
-    "ABSTRACT_BATCH_SIZE": 600,   # Up from 400
-    "CITATION_BATCH_SIZE": 600,   # Up from 400
-    "CONNECTION_LIMIT": 200,      # Up from 100
-    "CONNECTION_PER_HOST": 50,    # Up from default
-    "MINIMAL_DELAY": 0.005,       # Reduced from 0.2-0.3
-    "TWO_STAGE_FACTOR": 8,        # Fetch details for top 8x results before final filtering
-}
 
 # Global cache for fuzzy matching results
 FUZZY_MATCH_CACHE = {}
@@ -148,7 +126,7 @@ async def check_authentication(
     return False
 
 # ---------- Journal Impact Factor Data ----------
-@lru_cache(maxsize=50000)  # Increased cache size
+@lru_cache(maxsize=10000)
 def normalize_journal_name_cached(name: str) -> str:
     """Cached version of journal name normalization"""
     if not name or not name.strip():
@@ -476,36 +454,13 @@ Please analyze these {len(papers_data)} papers and provide:
 
 SYNTHESIS REQUIREMENTS:
 - Write exactly 3 paragraphs separated by blank lines
-- Paragraph 1: Overview of the research landscape and main themes (avoid a vague initial sentence, just jump into content!)
+- Paragraph 1: Overview of the research landscape and main themes
 - Paragraph 2: Key findings and methodological approaches  
-- Paragraph 3: Implications, gaps, and future directions identified in abstracts
+- Paragraph 3: Implications, gaps, and future directions
 - Only reference papers provided using format (PMID: 12345678)
 - Include multiple relevant PMIDs throughout each paragraph
 - Focus on findings most relevant to: "{query}"
-- Use scientific writing style: 
-
-STYLE
-- Vary sentence lengths and shapes. Target ~25–35% short (<10 words), 45–60% medium (10–20), 10–25% long (20+).
-- Avoid hedging statements and stock disclaimers (“It is important to note that…”, “Of note…”). 
-
-LEXICON (SOFT AVOID LIST)
-Use plain, specific words over buzzwords. Avoid or minimize: moreover, furthermore, additionally, thus, therefore, consequently, accordingly, indeed, robust, comprehensive, nuanced, holistic, landscape, realm, framework, granular, cohesive, leverage/leveraging, empower/empowering, unlock, harness, transformative, synergy/synergistic, unprecedented, pivotal, imperative, cornerstone, mitigate, underscore, elucidate, articulate, navigate, pertaining, noteworthy, tapestry, amidst, akin, delve, foster, foray, vital, vibrant, undeniably/undoubtedly.
-→ Replace with concrete, domain-specific nouns/verbs and precise adjectives.
-
-CONTENT
-- Never fabricate citations or quotes. Do not include “As an AI…” self-references.
-
-OUTPUT
-- Produce continuous professional scientific avoiding bullets, steps, or a table.
-
-INTERNAL SELF-CHECK (DO NOT PRINT)
-Before returning the final text, silently verify:
-1) Sentence starts using transition starters ≤15%.
-2) Hedging phrases ≤1 per ~200 words and replaced with precise qualifiers where possible.
-3) “Soft avoid” lexicon frequency near zero; replaced with concrete alternatives.
-4) Paragraph lengths vary (no uniform 3–4 sentences each), and no templated intro/body/conclusion pattern.
-5) Details included when appropriate.
-Return only the final text.
+- Use scientific writing style
 
 Papers to analyze:
 {json.dumps(papers_data, indent=2)}
@@ -572,17 +527,6 @@ Respond in this exact JSON format:
         return {"success": False, "error": str(e)}
 
 # ---------- LLM Query Generation ----------
-def generate_smart_queries_cached(nlq: str, model: str = OPENAI_MODEL) -> List[str]:
-    """Cached version of smart query generation"""
-    cache_key = hash(f"{nlq}:{model}")
-    
-    if cache_key in LLM_QUERY_CACHE:
-        return LLM_QUERY_CACHE[cache_key]
-    
-    result = generate_smart_queries(nlq, model)
-    LLM_QUERY_CACHE[cache_key] = result
-    return result
-
 def generate_smart_queries(nlq: str, model: str = OPENAI_MODEL) -> List[str]:
     """Generate smart queries using OpenAI or fallback"""
     if not OPENAI_API_KEY:
@@ -721,124 +665,56 @@ async def esearch_ids_paged_async(session: aiohttp.ClientSession, query: str, li
             break
     return pmids
 
-# ---------- OPTIMIZED FUNCTIONS ----------
-
-@lru_cache(maxsize=1000)
-def preprocess_text_cached(text: str) -> str:
-    """Cached text preprocessing for TF-IDF"""
-    if not text:
-        return ""
-    # Use pre-compiled regex
-    cleaned = TITLE_CLEANUP_REGEX.sub(' ', text.lower())
-    normalized = WHITESPACE_REGEX.sub(' ', cleaned).strip()
-    return normalized
-
-async def esummary_titles_async_optimized(session: aiohttp.ClientSession, pmids: List[str]) -> Dict[str, str]:
-    """Heavily optimized title fetching with maximum parallelization"""
+async def esummary_titles_async(session: aiohttp.ClientSession, pmids: List[str]) -> Dict[str, str]:
+    """Fetch titles for PMIDs using ESummary in batches"""
     titles: Dict[str, str] = {}
     if not pmids:
         return titles
-    
     url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
-    
-    # Smaller batches for better parallelization
-    BATCH = OPTIMIZED_CONFIG["TITLE_BATCH_SIZE"]
-    batches = [pmids[i:i+BATCH] for i in range(0, len(pmids), BATCH)]
-    
-    async def fetch_single_batch(batch: List[str]) -> Dict[str, str]:
+    BATCH = 200
+    for i in range(0, len(pmids), BATCH):
+        batch = pmids[i:i+BATCH]
         params = {"db": "pubmed", "retmode": "json", "id": ",".join(batch)}
         params.update(_eparams())
         try:
-            async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=12)) as response:
+            async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=20)) as response:
                 response.raise_for_status()
                 data = await response.json()
                 result = data.get("result", {})
-                batch_titles = {}
                 for uid in result.get("uids", []):
                     title = result.get(uid, {}).get("title") or ""
-                    batch_titles[uid] = title
-                return batch_titles
+                    titles[uid] = title
+            await asyncio.sleep(RATE_LIMIT_SEC)
         except Exception:
-            return {}
-    
-    # MAXIMUM PARALLELISM: Much higher semaphore limit
-    semaphore = asyncio.Semaphore(OPTIMIZED_CONFIG["TITLE_SEMAPHORE"])
-    
-    async def controlled_fetch(batch):
-        async with semaphore:
-            result = await fetch_single_batch(batch)
-            await asyncio.sleep(OPTIMIZED_CONFIG["MINIMAL_DELAY"])  # Minimal delay
-            return result
-    
-    # Process ALL batches in parallel
-    tasks = [controlled_fetch(batch) for batch in batches]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    
-    for result in results:
-        if isinstance(result, dict):
-            titles.update(result)
-    
+            pass
     return titles
 
-def tfidf_rank_titles_optimized(user_query: str, titles_by_pmid: Dict[str, str]) -> List[Tuple[str, float]]:
-    """Optimized TF-IDF ranking with caching and better vectorizer settings"""
-    
-    # Create cache key
-    query_hash = hash(user_query)
-    titles_hash = hash(tuple(sorted(titles_by_pmid.items())))
-    cache_key = (query_hash, titles_hash)
-    
-    # Check cache first
-    if cache_key in TFIDF_CACHE:
-        return TFIDF_CACHE[cache_key]
-    
+def tfidf_rank_titles(user_query: str, titles_by_pmid: Dict[str, str]) -> List[Tuple[str, float]]:
+    """Rank PMIDs by cosine similarity between user query and title using TF-IDF"""
     try:
         from sklearn.feature_extraction.text import TfidfVectorizer
         from sklearn.metrics.pairwise import cosine_similarity
     except Exception:
-        # Fallback: optimized keyword overlap
-        q_terms = set(preprocess_text_cached(user_query).split())
+        # Fallback: simple keyword overlap
+        q_terms = set(user_query.lower().split())
         scored = []
         for pmid, title in titles_by_pmid.items():
-            t_terms = set(preprocess_text_cached(title).split())
+            t_terms = set(title.lower().split())
             inter = len(q_terms & t_terms)
             score = inter / (len(q_terms) + 1e-9)
             scored.append((pmid, float(score)))
-        result = sorted(scored, key=lambda x: x[1], reverse=True)
-        TFIDF_CACHE[cache_key] = result
-        return result
+        return sorted(scored, key=lambda x: x[1], reverse=True)
 
     pmids = list(titles_by_pmid.keys())
     titles = [titles_by_pmid[p] for p in pmids]
-    
-    # Preprocess all text
-    processed_query = preprocess_text_cached(user_query)
-    processed_titles = [preprocess_text_cached(title) for title in titles]
-    corpus = [processed_query] + processed_titles
-    
-    # Optimized vectorizer settings
-    vec = TfidfVectorizer(
-        lowercase=False,  # Already lowercased
-        ngram_range=(1, 2), 
-        max_df=0.8,
-        max_features=10000,  # Increased
-        stop_words='english',  # Add stop words
-        min_df=1,
-        sublinear_tf=True  # Better for short documents
-    )
-    
+    corpus = [user_query] + titles
+    vec = TfidfVectorizer(lowercase=True, ngram_range=(1, 2), max_df=0.8)
     try:
         mat = vec.fit_transform(corpus)
         sims = cosine_similarity(mat[0:1], mat[1:]).ravel()
-        result = sorted([(p, float(s)) for p, s in zip(pmids, sims)], key=lambda x: x[1], reverse=True)
-        
-        # Cache the result
-        TFIDF_CACHE[cache_key] = result
-        return result
     except Exception:
-        result = [(pmid, 0.0) for pmid in pmids]
-        TFIDF_CACHE[cache_key] = result
-        return result
+        return [(pmid, 0.0) for pmid in pmids]
+    return sorted([(p, float(s)) for p, s in zip(pmids, sims)], key=lambda x: x[1], reverse=True)
 
 async def elink_expand_async(session: aiohttp.ClientSession, seed_pmids: List[str], mode: str = "similar", max_add: int = 500) -> Set[str]:
     """Expand a set of PMIDs using ELink"""
@@ -876,47 +752,15 @@ async def elink_expand_async(session: aiohttp.ClientSession, seed_pmids: List[st
             pass
     return set(list(out)[:max_add])
 
-def process_authors_fast(authors_raw) -> str:
-    """Fast author processing"""
-    if isinstance(authors_raw, list) and authors_raw:
-        first_author = authors_raw[0]
-        if isinstance(first_author, dict):
-            if 'fullName' in first_author and first_author['fullName']:
-                authors = first_author['fullName']
-            elif 'lastName' in first_author:
-                if 'firstName' in first_author and first_author['firstName']:
-                    authors = f"{first_author['lastName']}, {first_author['firstName']}"
-                else:
-                    authors = first_author['lastName']
-            else:
-                authors = str(first_author)
-        else:
-            authors = str(first_author)
-    elif isinstance(authors_raw, str):
-        if ';' in authors_raw:
-            authors = authors_raw.split(';')[0].strip()
-        elif ',' in authors_raw and len(authors_raw.split(',')) > 2:
-            authors = authors_raw.split(',')[0].strip()
-        else:
-            authors = authors_raw
-    else:
-        authors = "Unknown"
-    
-    if len(authors) > 50:
-        authors = authors[:47] + "..."
-    
-    return authors
-
-async def fetch_abstracts_batch_optimized(session: aiohttp.ClientSession, pmids: List[str]) -> Dict[str, Dict]:
-    """Optimized abstract fetching with larger batches and better parallelism"""
+async def fetch_abstracts_batch(session: aiohttp.ClientSession, pmids: List[str]) -> Dict[str, Dict]:
+    """Fetch abstracts with larger batches"""
     if not pmids:
         return {}
     
     info_map = {}
     url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
     
-    # Larger batch sizes
-    batch_size = OPTIMIZED_CONFIG["ABSTRACT_BATCH_SIZE"]
+    batch_size = 1000
     batches = [pmids[i:i+batch_size] for i in range(0, len(pmids), batch_size)]
     
     async def fetch_single_batch(batch: List[str]) -> Dict[str, Dict]:
@@ -928,7 +772,7 @@ async def fetch_abstracts_batch_optimized(session: aiohttp.ClientSession, pmids:
         params.update(_eparams())
         
         try:
-            async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=25)) as response:
+            async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=20)) as response:
                 response.raise_for_status()
                 xml_text = await response.text()
                 
@@ -959,15 +803,12 @@ async def fetch_abstracts_batch_optimized(session: aiohttp.ClientSession, pmids:
         except Exception:
             return {}
     
-    # Higher parallelism for abstracts
-    semaphore = asyncio.Semaphore(10)
+    semaphore = asyncio.Semaphore(MAX_CONCURRENT)
     
     async def controlled_fetch(batch):
         async with semaphore:
-            result = await fetch_single_batch(batch)
-            await asyncio.sleep(OPTIMIZED_CONFIG["MINIMAL_DELAY"])
-            return result
-
+            return await fetch_single_batch(batch)
+    
     tasks = [controlled_fetch(batch) for batch in batches]
     results = await asyncio.gather(*tasks, return_exceptions=True)
     
@@ -977,12 +818,11 @@ async def fetch_abstracts_batch_optimized(session: aiohttp.ClientSession, pmids:
     
     return info_map
 
-async def fetch_citation_data_batch_optimized(session: aiohttp.ClientSession, pmids: List[str]) -> Dict[str, Dict]:
-    """Optimized citation data fetching with larger batches"""
+async def fetch_citation_data_batch(session: aiohttp.ClientSession, pmids: List[str]) -> Dict[str, Dict]:
+    """Fetch citation data from iCite"""
     info = {}
     
-    # Larger batch sizes
-    batch_size = OPTIMIZED_CONFIG["CITATION_BATCH_SIZE"]
+    batch_size = 1000
     batches = [pmids[i:i+batch_size] for i in range(0, len(pmids), batch_size)]
     
     async def fetch_single_batch(batch: List[str]) -> Dict[str, Dict]:
@@ -990,7 +830,7 @@ async def fetch_citation_data_batch_optimized(session: aiohttp.ClientSession, pm
             url = "https://icite.od.nih.gov/api/pubs"
             params = {"pmids": ",".join(batch)}
             
-            async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=25)) as response:
+            async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=20)) as response:
                 if response.status == 200:
                     data = await response.json()
                     batch_info = {}
@@ -1002,9 +842,33 @@ async def fetch_citation_data_batch_optimized(session: aiohttp.ClientSession, pm
                             yr = item.get("year", NOW) or NOW
                             cpy = item.get("citations_per_year", 0) or 0
                             
-                            # Optimized author processing
                             authors_raw = item.get("authors", "Unknown")
-                            authors = process_authors_fast(authors_raw)
+                            if isinstance(authors_raw, list) and authors_raw:
+                                first_author = authors_raw[0]
+                                if isinstance(first_author, dict):
+                                    if 'fullName' in first_author and first_author['fullName']:
+                                        authors = first_author['fullName']
+                                    elif 'lastName' in first_author:
+                                        if 'firstName' in first_author and first_author['firstName']:
+                                            authors = f"{first_author['lastName']}, {first_author['firstName']}"
+                                        else:
+                                            authors = first_author['lastName']
+                                    else:
+                                        authors = str(first_author)
+                                else:
+                                    authors = str(first_author)
+                            elif isinstance(authors_raw, str):
+                                if ';' in authors_raw:
+                                    authors = authors_raw.split(';')[0].strip()
+                                elif ',' in authors_raw and len(authors_raw.split(',')) > 2:
+                                    authors = authors_raw.split(',')[0].strip()
+                                else:
+                                    authors = authors_raw
+                            else:
+                                authors = "Unknown"
+                            
+                            if len(authors) > 50:
+                                authors = authors[:47] + "..."
                             
                             batch_info[pmid] = {
                                 "weight": cpy,
@@ -1022,8 +886,7 @@ async def fetch_citation_data_batch_optimized(session: aiohttp.ClientSession, pm
         except Exception:
             return {}
     
-    # Higher parallelism for citations
-    semaphore = asyncio.Semaphore(8)
+    semaphore = asyncio.Semaphore(5)
     
     async def controlled_fetch(batch):
         async with semaphore:
@@ -1126,156 +989,6 @@ async def fetch_detailed_metadata(session: aiohttp.ClientSession, pmids: List[st
     
     return detailed_info
 
-def create_optimized_session() -> aiohttp.ClientSession:
-    """Create aiohttp session with optimized settings"""
-    timeout = aiohttp.ClientTimeout(total=45, connect=10)
-    connector = aiohttp.TCPConnector(
-        limit=OPTIMIZED_CONFIG["CONNECTION_LIMIT"],
-        limit_per_host=OPTIMIZED_CONFIG["CONNECTION_PER_HOST"],
-        ttl_dns_cache=300,      # DNS caching
-        use_dns_cache=True,
-        enable_cleanup_closed=True,
-        keepalive_timeout=30,   # Keep connections alive longer
-        force_close=False       # Reuse connections
-    )
-    return aiohttp.ClientSession(timeout=timeout, connector=connector)
-
-# ---------- OPTIMIZED MAIN SEARCH PIPELINE ----------
-async def perform_concentric_search_ultra_optimized(nlq: str, max_results: int = 200) -> List[SearchResult]:
-    """Ultra-optimized hybrid retrieval pipeline with two-stage processing"""
-    if not nlq or len(nlq.strip()) < 2:
-        raise ValueError("Query too short")
-
-    # Keep existing pool sizes for quality
-    TITLE_POOL_SIZE = int(os.getenv("TITLE_POOL_SIZE", "2000"))
-    PER_QUERY_MIN = int(os.getenv("PER_QUERY_MIN", "300"))
-    ENABLE_ELINK = os.getenv("ENABLE_ELINK", "1") == "1"
-    ELINK_MODES = os.getenv("ELINK_MODES", "similar,citedin").split(",")
-
-    # Two-stage factor: fetch expensive metadata for top N results
-    second_stage_size = min(max_results * OPTIMIZED_CONFIG["TWO_STAGE_FACTOR"], 600)
-
-    queries = generate_smart_queries_cached(nlq)  # Use cached version
-    strategy_names = ["MeSH/Specific", "Moderate", "Broad", "Natural"][:len(queries)]
-    variants = list(zip(strategy_names, queries))
-
-    async with create_optimized_session() as session:
-        # STAGE 1: Parallel variant processing (unchanged for quality)
-        async def process_single_variant(name_query_pair):
-            name, query = name_query_pair
-            try:
-                count = await esearch_count_async(session, query)
-                target_pool = max(TITLE_POOL_SIZE, max_results * 5)
-                per_share = max(PER_QUERY_MIN, target_pool // max(1, len(variants)))
-                to_get = min(per_share, count) if count > 0 else per_share
-                
-                pmids = await esearch_ids_paged_async(session, query, to_get, page_size=1000, sort="relevance")
-                await asyncio.sleep(OPTIMIZED_CONFIG["MINIMAL_DELAY"])
-                
-                return name, query, count, pmids
-                
-            except Exception as e:
-                print(f"Error processing variant {name}: {e}", file=sys.stderr)
-                return name, query, 0, []
-
-        # Execute all variants in parallel
-        variant_results = await asyncio.gather(
-            *[process_single_variant(variant) for variant in variants],
-            return_exceptions=True
-        )
-        
-        # Collect PMIDs
-        all_pmids: Set[str] = set()
-        pmid_to_strategy = {}
-        
-        for result in variant_results:
-            if isinstance(result, tuple) and len(result) == 4:
-                name, query, count, pmids = result
-                for pmid in pmids:
-                    if pmid not in pmid_to_strategy:
-                        pmid_to_strategy[pmid] = name
-                all_pmids.update(pmids)
-
-        # Optional ELink expansion (parallel with other operations when possible)
-        if ENABLE_ELINK and all_pmids:
-            seed = list(all_pmids)[:200]
-            elink_tasks = []
-            for mode in [m.strip() for m in ELINK_MODES if m.strip()]:
-                elink_tasks.append(elink_expand_async(session, seed, mode=mode, max_add=500))
-            
-            if elink_tasks:
-                elink_results = await asyncio.gather(*elink_tasks, return_exceptions=True)
-                for extra in elink_results:
-                    if isinstance(extra, set):
-                        for pmid in extra:
-                            if pmid not in pmid_to_strategy:
-                                pmid_to_strategy[pmid] = "Similar"
-                        all_pmids.update(extra)
-
-        pmid_list = list(all_pmids)
-        if not pmid_list:
-            return []
-
-        # STAGE 2: OPTIMIZED TITLE RANKING - Keep large pool for quality
-        titles_by_pmid = await esummary_titles_async_optimized(session, pmid_list)
-        ranked = tfidf_rank_titles_optimized(nlq, titles_by_pmid)
-
-        # STAGE 3: TWO-STAGE PROCESSING - Only fetch expensive data for top candidates
-        top_pmids = [pmid for pmid, _ in ranked[:second_stage_size]]
-
-        # Fetch expensive metadata in parallel for top candidates only
-        abstract_info_task = fetch_abstracts_batch_optimized(session, top_pmids)
-        citation_info_task = fetch_citation_data_batch_optimized(session, top_pmids)
-        
-        abstract_info, citation_info = await asyncio.gather(
-            abstract_info_task, 
-            citation_info_task
-        )
-
-        # STAGE 4: Create SearchResult objects (lightweight until now)
-        results: List[SearchResult] = []
-        for idx, pmid in enumerate(top_pmids, start=1):
-            abs_info = abstract_info.get(pmid, {})
-            cite_info = citation_info.get(pmid, {})
-            
-            title = cite_info.get("title", titles_by_pmid.get(pmid, "Unknown"))
-            authors = cite_info.get("authors", "Unknown")
-            journal = cite_info.get("journal", abs_info.get("journal_title", "Unknown"))
-            year = cite_info.get("year", NOW)
-            weight = cite_info.get("weight", 0.0)
-            abstract = abs_info.get("abstract", "")
-            issn = abs_info.get("issn", "")
-
-            result = SearchResult(
-                pmid=pmid,
-                title=title,
-                authors=authors,
-                journal=journal,
-                year=year,
-                abstract=abstract,
-                weight=weight,
-                strategy=pmid_to_strategy.get(pmid, "Related"),
-                rank=idx,
-                journal_impact=0.0,
-                issn=issn
-            )
-            results.append(result)
-
-        # Fill journal impact (optimized lookup)
-        if results and JOURNAL_IMPACTS:
-            for r in results:
-                r.journal_impact = lookup_journal_impact_optimized(JOURNAL_IMPACTS, r.journal, r.issn)
-
-        # Calculate combined scores
-        for result in results:
-            result.combined_score = calculate_total_weight(
-                result.year, 
-                result.weight, 
-                result.journal_impact
-            )
-
-        return results[:max_results]
-
 def generate_ris_content(results: List[SearchResult]) -> str:
     """Generate RIS format content from search results"""
     ris_lines = []
@@ -1330,22 +1043,151 @@ def generate_ris_content(results: List[SearchResult]) -> str:
     
     return "\n".join(ris_lines)
 
-# ---------- Cache Management ----------
-def clear_caches():
-    """Clear all caches to free memory"""
-    global TFIDF_CACHE, SIMILARITY_CACHE, LLM_QUERY_CACHE
-    TFIDF_CACHE.clear()
-    SIMILARITY_CACHE.clear()
-    LLM_QUERY_CACHE.clear()
+# ---------- Main Search Pipeline ----------
+async def perform_concentric_search_optimized(nlq: str, max_results: int = 200) -> List[SearchResult]:
+    """Hybrid retrieval pipeline with enhanced scoring"""
+    if not nlq or len(nlq.strip()) < 2:
+        raise ValueError("Query too short")
 
-def get_cache_stats():
-    """Get cache statistics"""
-    return {
-        "tfidf_cache_size": len(TFIDF_CACHE),
-        "similarity_cache_size": len(SIMILARITY_CACHE), 
-        "llm_query_cache_size": len(LLM_QUERY_CACHE),
-        "fuzzy_match_cache_size": len(FUZZY_MATCH_CACHE)
-    }
+    TITLE_POOL_SIZE = int(os.getenv("TITLE_POOL_SIZE", "2500"))
+    PER_QUERY_MIN = int(os.getenv("PER_QUERY_MIN", "300"))
+    SECOND_STAGE_FACTOR = float(os.getenv("SECOND_STAGE_FACTOR", "4.0"))
+    ENABLE_ELINK = os.getenv("ENABLE_ELINK", "1") == "1"
+    ELINK_MODES = os.getenv("ELINK_MODES", "similar,citedin").split(",")
+
+    queries = generate_smart_queries(nlq)
+    strategy_names = ["MeSH/Specific", "Moderate", "Broad", "Natural"][:len(queries)]
+    variants = list(zip(strategy_names, queries))
+
+    timeout = aiohttp.ClientTimeout(total=45, connect=10)
+    connector = aiohttp.TCPConnector(limit=100, enable_cleanup_closed=True)
+
+    async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
+        # Process all variants in parallel - MAJOR SPEED IMPROVEMENT
+        async def process_single_variant(name_query_pair):
+            name, query = name_query_pair
+            try:
+                # Get count first
+                count = await esearch_count_async(session, query)
+                
+                # Calculate how many to fetch for this variant
+                target_pool = max(TITLE_POOL_SIZE, max_results * 5)
+                per_share = max(PER_QUERY_MIN, target_pool // max(1, len(variants)))
+                to_get = min(per_share, count) if count > 0 else per_share
+                
+                # Fetch PMIDs
+                pmids = await esearch_ids_paged_async(session, query, to_get, page_size=1000, sort="relevance")
+                
+                # Add small delay to respect rate limits
+                await asyncio.sleep(RATE_LIMIT_SEC)
+                
+                return name, query, count, pmids
+                
+            except Exception as e:
+                print(f"Error processing variant {name}: {e}", file=sys.stderr)
+                return name, query, 0, []
+
+        # Execute all variants in parallel instead of sequentially
+        variant_results = await asyncio.gather(
+            *[process_single_variant(variant) for variant in variants],
+            return_exceptions=True
+        )
+        
+        # Collect results (same logic as before)
+        all_pmids: Set[str] = set()
+        pmid_to_strategy = {}  # Track which strategy found each PMID
+        
+        for result in variant_results:
+            if isinstance(result, tuple) and len(result) == 4:
+                name, query, count, pmids = result
+                
+                # Track strategy for each PMID (first strategy wins if PMID appears in multiple)
+                for pmid in pmids:
+                    if pmid not in pmid_to_strategy:
+                        pmid_to_strategy[pmid] = name
+                
+                all_pmids.update(pmids)
+            elif isinstance(result, Exception):
+                print(f"Variant processing failed: {result}", file=sys.stderr)
+
+        # Optional ELink expansion
+        if ENABLE_ELINK and all_pmids:
+            seed = list(all_pmids)[:200]
+            for mode in [m.strip() for m in ELINK_MODES if m.strip()]:
+                extra = await elink_expand_async(session, seed, mode=mode, max_add=500)
+                
+                # Track ELink results
+                for pmid in extra:
+                    if pmid not in pmid_to_strategy:
+                        pmid_to_strategy[pmid] = f"Similar"  # or "Cited" depending on mode
+                
+                all_pmids.update(extra)
+
+        pmid_list = list(all_pmids)
+        if not pmid_list:
+            return []
+
+        # Fetch titles and rank
+        titles_by_pmid = await esummary_titles_async(session, pmid_list)
+        ranked = tfidf_rank_titles(nlq, titles_by_pmid)
+
+        # Take top K for efetch
+        k = int(max_results * SECOND_STAGE_FACTOR)
+        top_pmids = [pmid for pmid, _ in ranked[:k]]
+
+        # Fetch both abstracts and citation data
+        abstract_info_task = fetch_abstracts_batch(session, top_pmids)
+        citation_info_task = fetch_citation_data_batch(session, top_pmids)
+        
+        abstract_info, citation_info = await asyncio.gather(
+            abstract_info_task, 
+            citation_info_task
+        )
+
+        # Map to SearchResult
+        results: List[SearchResult] = []
+        for idx, pmid in enumerate(top_pmids, start=1):
+            abs_info = abstract_info.get(pmid, {})
+            cite_info = citation_info.get(pmid, {})
+            
+            # Use citation data as primary source, fallback to abstract data for missing fields
+            title = cite_info.get("title", titles_by_pmid.get(pmid, "Unknown"))
+            authors = cite_info.get("authors", "Unknown")
+            journal = cite_info.get("journal", abs_info.get("journal_title", "Unknown"))
+            year = cite_info.get("year", NOW)
+            weight = cite_info.get("weight", 0.0)
+            abstract = abs_info.get("abstract", "")
+            issn = abs_info.get("issn", "")
+
+            result = SearchResult(
+                pmid=pmid,
+                title=title,
+                authors=authors,
+                journal=journal,
+                year=year,
+                abstract=abstract,
+                weight=weight,
+                strategy=pmid_to_strategy.get(pmid, "Related"),  # Use actual strategy
+                rank=idx,
+                journal_impact=0.0,
+                issn=issn
+            )
+            results.append(result)
+
+        # Fill journal impact
+        if results and JOURNAL_IMPACTS:
+            for r in results:
+                r.journal_impact = lookup_journal_impact_optimized(JOURNAL_IMPACTS, r.journal, r.issn)
+
+        # Calculate combined scores for all results
+        for result in results:
+            result.combined_score = calculate_total_weight(
+                result.year, 
+                result.weight, 
+                result.journal_impact
+            )
+
+        return results[:max_results]
 
 @app.get("/favicon.ico")
 async def favicon():
@@ -1411,27 +1253,6 @@ async def auth_debug(request: Request, session_token: Optional[str] = Cookie(Non
         "access_password": ACCESS_PASSWORD
     }
 
-# ---------- CACHE MANAGEMENT ENDPOINTS ----------
-@app.get("/cache-stats")
-async def cache_stats_endpoint(request: Request, session_token: Optional[str] = Cookie(None)):
-    """Get cache statistics"""
-    is_authenticated = await check_authentication(request, session_token)
-    if not is_authenticated:
-        raise HTTPException(status_code=401, detail="Authentication required")
-    
-    stats = get_cache_stats()
-    return JSONResponse(stats)
-
-@app.post("/clear-caches") 
-async def clear_caches_endpoint(request: Request, session_token: Optional[str] = Cookie(None)):
-    """Clear all caches"""
-    is_authenticated = await check_authentication(request, session_token)
-    if not is_authenticated:
-        raise HTTPException(status_code=401, detail="Authentication required")
-    
-    clear_caches()
-    return JSONResponse({"status": "caches cleared"})
-
 # ---------- FastAPI Routes ----------
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request, session_token: Optional[str] = Cookie(None)):
@@ -1446,7 +1267,7 @@ async def root(request: Request, session_token: Optional[str] = Cookie(None)):
         "query": "",
         "total_results": 0,
         "search_time": 0,
-        "mean_score": 0
+        "impact_count": 0
     })
 
 @app.get("/login", response_class=HTMLResponse)
@@ -1505,12 +1326,11 @@ async def search_endpoint(
     
     try:
         start_time = time.time()
-        # USE THE OPTIMIZED VERSION
-        results = await perform_concentric_search_ultra_optimized(query.strip(), max_results)
+        results = await perform_concentric_search_optimized(query.strip(), max_results)
         search_time = time.time() - start_time
         
-        # Sort results by total score (highest first) by default
-        results.sort(key=lambda x: x.combined_score, reverse=True)
+        # Sort results by date (most recent first) by default
+        results.sort(key=lambda x: x.year, reverse=True)
         
         # Convert SearchResult objects to dictionaries using the to_dict() method
         results_dict = [result.to_dict() for result in results]
@@ -1522,7 +1342,7 @@ async def search_endpoint(
             "total_results": len(results),
             "search_time": search_time,
             "max_results": max_results,
-            "mean_score": round(sum(r.combined_score for r in results) / len(results)) if results else 0
+            "mean_score": round(sum(r.combined_score for r in results) / len(results)) if results else 0  # CHANGE THIS LINE
         })
         
     except ValueError as e:
@@ -1533,7 +1353,7 @@ async def search_endpoint(
             "total_results": 0,
             "search_time": 0,
             "error": str(e),
-            "mean_score": 0
+            "mean_score": 0  # CHANGE THIS LINE
         })
 
     except Exception as e:
@@ -1544,7 +1364,7 @@ async def search_endpoint(
             "total_results": 0,
             "search_time": 0,
             "error": f"Search failed: {str(e)}",
-            "mean_score": 0
+            "mean_score": 0  # CHANGE THIS LINE
         })
 
 @app.post("/analyze")
@@ -1639,15 +1459,17 @@ async def download_ris_endpoint(
         if not query or len(query.strip()) < 2:
             raise HTTPException(status_code=400, detail="Query too short")
         
-        # USE THE OPTIMIZED VERSION
-        results = await perform_concentric_search_ultra_optimized(query.strip(), max_results)
+        results = await perform_concentric_search_optimized(query.strip(), max_results)
         
         if not results:
             raise HTTPException(status_code=404, detail="No results found")
         
         pmids = [r.pmid for r in results]
         
-        async with create_optimized_session() as session:
+        timeout = aiohttp.ClientTimeout(total=30, connect=10)
+        connector = aiohttp.TCPConnector(limit=50, limit_per_host=10)
+        
+        async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
             detailed_metadata = await fetch_detailed_metadata(session, pmids)
         
         for result in results:
@@ -1729,9 +1551,13 @@ async def download_synthesis_ris_endpoint(
         if not pmids_list:
             raise HTTPException(status_code=400, detail="No cited papers found")
         
-        async with create_optimized_session() as session:
-            citation_info = await fetch_citation_data_batch_optimized(session, pmids_list)
-            abstract_info = await fetch_abstracts_batch_optimized(session, pmids_list)
+        # [Keep the same fetching logic as before, but only return RIS]
+        timeout = aiohttp.ClientTimeout(total=30, connect=10)
+        connector = aiohttp.TCPConnector(limit=50, limit_per_host=10)
+        
+        async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
+            citation_info = await fetch_citation_data_batch(session, pmids_list)
+            abstract_info = await fetch_abstracts_batch(session, pmids_list)
             detailed_metadata = await fetch_detailed_metadata(session, pmids_list)
         
         # Create SearchResult objects and generate RIS
@@ -1773,10 +1599,10 @@ async def download_synthesis_ris_endpoint(
         
         return Response(
             content=ris_content,
-            media_type="text/plain",
+            media_type="text/plain",  # More standard MIME type
             headers={
                 "Content-Disposition": f"attachment; filename=cited_references_{timestamp}.ris",
-                "Content-Type": "text/plain; charset=utf-8"
+                "Content-Type": "text/plain; charset=utf-8"  # Match the media_type
             }
         )
         
