@@ -61,7 +61,7 @@
                         <p>AI-powered scientific literature discovery and ranking</p>
                     </div>
                     
-                    <form method="post" action="/search" class="search-form">
+                    <form method="post" action="/search" class="search-form" id="searchForm">
                         <div class="search-input-group">
                             <div class="search-input-wrapper">
                                 <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -79,25 +79,28 @@
                                 >
                             </div>
                             
-                            <div class="search-options-inline">
-                                <div class="option-group">
-                                    <label for="max_results">Results</label>
-                                    <select name="max_results" id="max_results" class="select-input">
-                                        <option value="25" {% if max_results == 25 %}selected{% endif %}>25</option>
-                                        <option value="50" {% if max_results == 50 or not max_results %}selected{% endif %}>50</option>
-                                        <option value="100" {% if max_results == 100 %}selected{% endif %}>100</option>
-                                        <option value="200" {% if max_results == 200 %}selected{% endif %}>200</option>
-                                    </select>
-                                </div>
+                            <div class="search-actions">
+                                <button type="submit" class="search-btn">
+                                    <span>Search</span>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                                    </svg>
+                                </button>
+                                
+                                <button type="button" class="advanced-btn" id="advancedBtn" title="Advanced Search Options">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="12" cy="12" r="3"/>
+                                        <path d="M12 1v6m0 6V21M8.21 7.5l-1.42 1.42M17.21 7.5l1.42 1.42M8.21 16.5l-1.42-1.42M17.21 16.5l1.42-1.42"/>
+                                    </svg>
+                                </button>
                             </div>
-                            
-                            <button type="submit" class="search-btn">
-                                <span>Search</span>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M5 12h14M12 5l7 7-7 7"/>
-                                </svg>
-                            </button>
                         </div>
+
+                        <!-- Hidden inputs for advanced options -->
+                        <input type="hidden" name="max_results" id="hiddenMaxResults" value="{{ max_results or 50 }}">
+                        <input type="hidden" name="clinical_trials_only" id="hiddenClinicalTrials" value="{{ clinical_trials_only or 'false' }}">
+                        <input type="hidden" name="exclude_reviews" id="hiddenExcludeReviews" value="{{ exclude_reviews or 'false' }}">
+                        <input type="hidden" name="year_filter" id="hiddenYearFilter" value="{{ year_filter or 'all' }}">
                     </form>
                 </div>
             </div>
@@ -313,11 +316,139 @@
         </div>
     </div>
 
+    <!-- Advanced Search Modal -->
+    <div id="advancedModal" class="modal">
+        <div class="modal-content advanced-modal">
+            <div class="modal-header">
+                <h3>Advanced Search Options</h3>
+                <span class="close" onclick="closeAdvancedModal()">&times;</span>
+            </div>
+            
+            <form class="advanced-form" id="advancedForm">
+                <div class="form-section">
+                    <label for="modalMaxResults">Number of Results</label>
+                    <select id="modalMaxResults" class="form-select">
+                        <option value="25">25</option>
+                        <option value="50" selected>50</option>
+                        <option value="100">100</option>
+                        <option value="200">200</option>
+                    </select>
+                </div>
+
+                <div class="form-section">
+                    <label>Study Type Filters</label>
+                    <div class="checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="modalClinicalTrials">
+                            <span class="checkmark"></span>
+                            Clinical trials only
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="modalExcludeReviews">
+                            <span class="checkmark"></span>
+                            Exclude reviews
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <label for="modalYearFilter">Publication Date</label>
+                    <select id="modalYearFilter" class="form-select">
+                        <option value="all" selected>All years</option>
+                        <option value="1">Past 1 year</option>
+                        <option value="5">Past 5 years</option>
+                        <option value="10">Past 10 years</option>
+                        <option value="15">Past 15 years</option>
+                        <option value="20">Past 20 years</option>
+                    </select>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="resetAdvancedOptions()">Reset</button>
+                    <button type="button" class="btn-primary" onclick="applyAdvancedOptions()">Apply</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         // Global variables
         let currentResults = {{ results | tojson | safe }};
         let currentSynthesis = '';
         let citedPmids = [];
+
+        // Advanced search modal functions
+        function openAdvancedModal() {
+            // Load current values into modal
+            document.getElementById('modalMaxResults').value = document.getElementById('hiddenMaxResults').value || '50';
+            document.getElementById('modalClinicalTrials').checked = document.getElementById('hiddenClinicalTrials').value === 'true';
+            document.getElementById('modalExcludeReviews').checked = document.getElementById('hiddenExcludeReviews').value === 'true';
+            document.getElementById('modalYearFilter').value = document.getElementById('hiddenYearFilter').value || 'all';
+            
+            document.getElementById('advancedModal').style.display = 'block';
+        }
+
+        function closeAdvancedModal() {
+            document.getElementById('advancedModal').style.display = 'none';
+        }
+
+        function resetAdvancedOptions() {
+            document.getElementById('modalMaxResults').value = '50';
+            document.getElementById('modalClinicalTrials').checked = false;
+            document.getElementById('modalExcludeReviews').checked = false;
+            document.getElementById('modalYearFilter').value = 'all';
+        }
+
+        function applyAdvancedOptions() {
+            // Update hidden form inputs
+            document.getElementById('hiddenMaxResults').value = document.getElementById('modalMaxResults').value;
+            document.getElementById('hiddenClinicalTrials').value = document.getElementById('modalClinicalTrials').checked ? 'true' : 'false';
+            document.getElementById('hiddenExcludeReviews').value = document.getElementById('modalExcludeReviews').checked ? 'true' : 'false';
+            document.getElementById('hiddenYearFilter').value = document.getElementById('modalYearFilter').value;
+            
+            // Close modal
+            closeAdvancedModal();
+            
+            // Update UI to show active filters
+            updateAdvancedButtonState();
+        }
+
+        function updateAdvancedButtonState() {
+            const advancedBtn = document.getElementById('advancedBtn');
+            const maxResults = document.getElementById('hiddenMaxResults').value;
+            const clinicalTrials = document.getElementById('hiddenClinicalTrials').value === 'true';
+            const excludeReviews = document.getElementById('hiddenExcludeReviews').value === 'true';
+            const yearFilter = document.getElementById('hiddenYearFilter').value;
+            
+            const hasFilters = maxResults !== '50' || clinicalTrials || excludeReviews || yearFilter !== 'all';
+            
+            if (hasFilters) {
+                advancedBtn.classList.add('active');
+            } else {
+                advancedBtn.classList.remove('active');
+            }
+        }
+
+        // Initialize advanced button event listener
+        document.getElementById('advancedBtn').addEventListener('click', openAdvancedModal);
+
+        // Update button state on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            updateAdvancedButtonState();
+        });
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const aboutModal = document.getElementById('aboutModal');
+            const advancedModal = document.getElementById('advancedModal');
+            
+            if (event.target == aboutModal) {
+                aboutModal.style.display = 'none';
+            }
+            if (event.target == advancedModal) {
+                advancedModal.style.display = 'none';
+            }
+        }
 
         // Theme toggle functionality
         const themeToggle = document.getElementById('themeToggle');
@@ -813,14 +944,6 @@
 
         function closeAboutModal() {
             document.getElementById('aboutModal').style.display = 'none';
-        }
-
-        // Close modal when clicking outside
-        window.onclick = function(event) {
-            const modal = document.getElementById('aboutModal');
-            if (event.target == modal) {
-                modal.style.display = 'none';
-            }
         }
 
         // Search loading animation

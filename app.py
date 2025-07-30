@@ -486,14 +486,14 @@ SYNTHESIS REQUIREMENTS:
 
 STYLE
 - Vary sentence lengths and shapes. Target ~25–35% short (<10 words), 45–60% medium (10–20), 10–25% long (20+).
-- Avoid hedging statements and stock disclaimers (“It is important to note that…”, “Of note…”). 
+- Avoid hedging statements and stock disclaimers ("It is important to note that…", "Of note…"). 
 
 LEXICON (SOFT AVOID LIST)
-Use plain, specific words over buzzwords. Avoid or minimize: moreover, furthermore, additionally, thus, therefore, consequently, accordingly, indeed, robust, comprehensive, nuanced, holistic, landscape, realm, framework, granular, cohesive, leverage/leveraging, empower/empowering, unlock, harness, transformative, synergy/synergistic, unprecedented, pivotal, imperative, cornerstone, mitigate, underscore, elucidate, articulate, navigate, pertaining, noteworthy, tapestry, amidst, akin, delve, foster, foray, vital, vibrant, undeniably/undoubtedly.
+Use plain, specific words over buzzwords. DO NOT USE these words: moreover, furthermore, additionally, thus, therefore, consequently, accordingly, indeed, robust, comprehensive, nuanced, holistic, landscape, realm, framework, granular, cohesive, leverage/leveraging, empower/empowering, unlock, harness, transformative, synergy/synergistic, unprecedented, pivotal, imperative, cornerstone, mitigate, underscore, elucidate, articulate, navigate, pertaining, noteworthy, tapestry, amidst, akin, delve, foster, foray, vital, vibrant, undeniably/undoubtedly.
 → Replace with concrete, domain-specific nouns/verbs and precise adjectives.
 
 CONTENT
-- Never fabricate citations or quotes. Do not include “As an AI…” self-references.
+- Never fabricate citations or quotes. Do not include "As an AI…" self-references.
 
 OUTPUT
 - Produce continuous professional scientific avoiding bullets, steps, or a table.
@@ -502,7 +502,7 @@ INTERNAL SELF-CHECK (DO NOT PRINT)
 Before returning the final text, silently verify:
 1) Sentence starts using transition starters ≤15%.
 2) Hedging phrases ≤1 per ~200 words and replaced with precise qualifiers where possible.
-3) “Soft avoid” lexicon frequency near zero; replaced with concrete alternatives.
+3) "Soft avoid" lexicon frequency near zero; replaced with concrete alternatives.
 4) Paragraph lengths vary (no uniform 3–4 sentences each), and no templated intro/body/conclusion pattern.
 5) Details included when appropriate.
 Return only the final text.
@@ -525,7 +525,7 @@ Respond in this exact JSON format:
         data = {
             "model": OPENAI_MODEL,
             "messages": [
-                {"role": "system", "content": "You are a scientific literature analysis expert. Return only valid JSON in the exact format requested."},
+                {"role": "system", "content": "You are a scientific writer. Return only valid JSON in the exact format requested."},
                 {"role": "user", "content": prompt}
             ],
             "max_tokens": 2000,
@@ -570,6 +570,36 @@ Respond in this exact JSON format:
             
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+# ---------- Advanced Search Filter Functions ----------
+def apply_search_filters(base_query: str, clinical_trials_only: bool, exclude_reviews: bool, year_filter: str) -> str:
+    """Apply advanced search filters to the base query"""
+    filtered_query = base_query.strip()
+    
+    # Apply clinical trials filter
+    if clinical_trials_only:
+        filtered_query += " AND (clinical trial[pt] OR randomized controlled trial[pt] OR controlled clinical trial[pt])"
+    
+    # Apply exclude reviews filter
+    if exclude_reviews:
+        filtered_query += " AND NOT (review[pt] OR systematic review[pt] OR meta-analysis[pt])"
+    
+    # Apply year filter - be more careful with the syntax
+    if year_filter != "all" and year_filter.strip():
+        try:
+            years_back = int(year_filter)
+            if years_back > 0:  # Ensure positive number
+                current_year = dt.datetime.now().year
+                start_year = current_year - years_back
+                # Use a more robust date range format
+                filtered_query += f" AND ({start_year}[pdat]:{current_year}[pdat])"
+                print(f"DEBUG FILTER: Applied year filter: {start_year}-{current_year}")
+        except ValueError:
+            print(f"DEBUG FILTER: Invalid year filter value: {year_filter}")
+            pass  # Invalid year filter, ignore
+    
+    print(f"DEBUG FILTER: Final query: {filtered_query}")
+    return filtered_query
 
 # ---------- LLM Query Generation ----------
 def generate_smart_queries_cached(nlq: str, model: str = OPENAI_MODEL) -> List[str]:
@@ -641,6 +671,20 @@ Return as JSON:
     except Exception:
         return generate_fallback_queries(nlq)
 
+def generate_smart_queries_with_filters(nlq: str, clinical_trials_only: bool, exclude_reviews: bool, year_filter: str, model: str = OPENAI_MODEL) -> List[str]:
+    """Generate smart queries with advanced filters applied"""
+    
+    # Generate base queries first
+    base_queries = generate_smart_queries_cached(nlq, model)
+    
+    # Apply filters to each query
+    filtered_queries = []
+    for query in base_queries:
+        filtered_query = apply_search_filters(query, clinical_trials_only, exclude_reviews, year_filter)
+        filtered_queries.append(filtered_query)
+    
+    return filtered_queries
+
 def generate_fallback_queries(nlq: str) -> List[str]:
     """Generate fallback queries when OpenAI is not available"""
     key_terms = re.findall(r'\b[a-zA-Z]{3,}\b', nlq.lower())
@@ -659,6 +703,18 @@ def generate_fallback_queries(nlq: str) -> List[str]:
     queries.append(key_terms[0])
     
     return queries[:4]
+
+def generate_fallback_queries_with_filters(nlq: str, clinical_trials_only: bool, exclude_reviews: bool, year_filter: str) -> List[str]:
+    """Generate fallback queries with filters when OpenAI is not available"""
+    base_queries = generate_fallback_queries(nlq)
+    
+    # Apply filters to each query
+    filtered_queries = []
+    for query in base_queries:
+        filtered_query = apply_search_filters(query, clinical_trials_only, exclude_reviews, year_filter)
+        filtered_queries.append(filtered_query)
+    
+    return filtered_queries
 
 # ---------- NCBI API helpers ----------
 def _eparams(extra: dict = None) -> dict:
@@ -1140,11 +1196,20 @@ def create_optimized_session() -> aiohttp.ClientSession:
     )
     return aiohttp.ClientSession(timeout=timeout, connector=connector)
 
-# ---------- OPTIMIZED MAIN SEARCH PIPELINE ----------
-async def perform_concentric_search_ultra_optimized(nlq: str, max_results: int = 200) -> List[SearchResult]:
-    """Ultra-optimized hybrid retrieval pipeline with two-stage processing"""
+# ---------- MAIN SEARCH PIPELINE WITH FILTERS ----------
+async def perform_concentric_search_ultra_optimized_with_filters(
+    nlq: str, 
+    max_results: int = 200,
+    clinical_trials_only: bool = False,
+    exclude_reviews: bool = False,
+    year_filter: str = "all"
+) -> List[SearchResult]:
+    """Ultra-optimized hybrid retrieval pipeline with advanced search filters"""
+    
     if not nlq or len(nlq.strip()) < 2:
         raise ValueError("Query too short")
+
+    print(f"DEBUG FILTER: Starting search with filters - CT: {clinical_trials_only}, ER: {exclude_reviews}, Year: {year_filter}, Max: {max_results}")
 
     # Keep existing pool sizes for quality
     TITLE_POOL_SIZE = int(os.getenv("TITLE_POOL_SIZE", "2000"))
@@ -1155,27 +1220,33 @@ async def perform_concentric_search_ultra_optimized(nlq: str, max_results: int =
     # Two-stage factor: fetch expensive metadata for top N results
     second_stage_size = min(max_results * OPTIMIZED_CONFIG["TWO_STAGE_FACTOR"], 600)
 
-    queries = generate_smart_queries_cached(nlq)  # Use cached version
+    # Generate queries with filters applied
+    queries = generate_smart_queries_with_filters(nlq, clinical_trials_only, exclude_reviews, year_filter)
+    print(f"DEBUG FILTER: Generated {len(queries)} filtered queries: {queries}")
+    
     strategy_names = ["MeSH/Specific", "Moderate", "Broad", "Natural"][:len(queries)]
     variants = list(zip(strategy_names, queries))
 
     async with create_optimized_session() as session:
-        # STAGE 1: Parallel variant processing (unchanged for quality)
+        # STAGE 1: Parallel variant processing
         async def process_single_variant(name_query_pair):
             name, query = name_query_pair
             try:
                 count = await esearch_count_async(session, query)
+                print(f"DEBUG FILTER: Query '{name}' returned {count} total results")
+                
                 target_pool = max(TITLE_POOL_SIZE, max_results * 5)
                 per_share = max(PER_QUERY_MIN, target_pool // max(1, len(variants)))
                 to_get = min(per_share, count) if count > 0 else per_share
                 
                 pmids = await esearch_ids_paged_async(session, query, to_get, page_size=1000, sort="relevance")
+                print(f"DEBUG FILTER: Query '{name}' fetched {len(pmids)} PMIDs")
                 await asyncio.sleep(OPTIMIZED_CONFIG["MINIMAL_DELAY"])
                 
                 return name, query, count, pmids
                 
             except Exception as e:
-                print(f"Error processing variant {name}: {e}", file=sys.stderr)
+                print(f"DEBUG FILTER: Error processing variant {name}: {e}")
                 return name, query, 0, []
 
         # Execute all variants in parallel
@@ -1196,6 +1267,8 @@ async def perform_concentric_search_ultra_optimized(nlq: str, max_results: int =
                         pmid_to_strategy[pmid] = name
                 all_pmids.update(pmids)
 
+        print(f"DEBUG FILTER: Total unique PMIDs collected: {len(all_pmids)}")
+
         # Optional ELink expansion (parallel with other operations when possible)
         if ENABLE_ELINK and all_pmids:
             seed = list(all_pmids)[:200]
@@ -1213,17 +1286,25 @@ async def perform_concentric_search_ultra_optimized(nlq: str, max_results: int =
                         all_pmids.update(extra)
 
         pmid_list = list(all_pmids)
+        print(f"DEBUG FILTER: Final PMID list length: {len(pmid_list)}")
+        
         if not pmid_list:
+            print("DEBUG FILTER: No PMIDs found, returning empty results")
             return []
 
         # STAGE 2: OPTIMIZED TITLE RANKING - Keep large pool for quality
         titles_by_pmid = await esummary_titles_async_optimized(session, pmid_list)
+        print(f"DEBUG FILTER: Fetched titles for {len(titles_by_pmid)} PMIDs")
+        
         ranked = tfidf_rank_titles_optimized(nlq, titles_by_pmid)
+        print(f"DEBUG FILTER: Ranked {len(ranked)} results by TF-IDF")
 
         # STAGE 3: TWO-STAGE PROCESSING - Only fetch expensive data for top candidates
         top_pmids = [pmid for pmid, _ in ranked[:second_stage_size]]
+        print(f"DEBUG FILTER: Selected top {len(top_pmids)} PMIDs for detailed processing")
 
         # Fetch expensive metadata in parallel for top candidates only
+        print("DEBUG FILTER: Fetching abstracts and citation data...")
         abstract_info_task = fetch_abstracts_batch_optimized(session, top_pmids)
         citation_info_task = fetch_citation_data_batch_optimized(session, top_pmids)
         
@@ -1232,8 +1313,13 @@ async def perform_concentric_search_ultra_optimized(nlq: str, max_results: int =
             citation_info_task
         )
 
-        # STAGE 4: Create SearchResult objects (lightweight until now)
+        print(f"DEBUG FILTER: Retrieved abstract info for {len(abstract_info)} papers")
+        print(f"DEBUG FILTER: Retrieved citation info for {len(citation_info)} papers")
+
+        # STAGE 4: Create SearchResult objects and apply additional filtering
         results: List[SearchResult] = []
+        skipped_count = 0
+        
         for idx, pmid in enumerate(top_pmids, start=1):
             abs_info = abstract_info.get(pmid, {})
             cite_info = citation_info.get(pmid, {})
@@ -1245,6 +1331,18 @@ async def perform_concentric_search_ultra_optimized(nlq: str, max_results: int =
             weight = cite_info.get("weight", 0.0)
             abstract = abs_info.get("abstract", "")
             issn = abs_info.get("issn", "")
+
+            # REMOVE THE POST-PROCESSING YEAR FILTER - it's already applied in the query
+            # The year filter should be handled by the PubMed query, not post-processing
+            # if year_filter != "all":
+            #     try:
+            #         years_back = int(year_filter)
+            #         current_year = dt.datetime.now().year
+            #         if year < (current_year - years_back):
+            #             skipped_count += 1
+            #             continue  # Skip this result
+            #     except ValueError:
+            #         pass
 
             result = SearchResult(
                 pmid=pmid,
@@ -1261,6 +1359,8 @@ async def perform_concentric_search_ultra_optimized(nlq: str, max_results: int =
             )
             results.append(result)
 
+        print(f"DEBUG FILTER: Created {len(results)} SearchResult objects (skipped {skipped_count})")
+
         # Fill journal impact (optimized lookup)
         if results and JOURNAL_IMPACTS:
             for r in results:
@@ -1274,7 +1374,17 @@ async def perform_concentric_search_ultra_optimized(nlq: str, max_results: int =
                 result.journal_impact
             )
 
-        return results[:max_results]
+        final_results = results[:max_results]
+        print(f"DEBUG FILTER: Returning {len(final_results)} final results")
+        
+        return final_results
+
+# ---------- ORIGINAL SEARCH FUNCTION (for backwards compatibility) ----------
+async def perform_concentric_search_ultra_optimized(nlq: str, max_results: int = 200) -> List[SearchResult]:
+    """Original ultra-optimized search function without filters"""
+    return await perform_concentric_search_ultra_optimized_with_filters(
+        nlq, max_results, False, False, "all"
+    )
 
 def generate_ris_content(results: List[SearchResult]) -> str:
     """Generate RIS format content from search results"""
@@ -1346,6 +1456,7 @@ def get_cache_stats():
         "llm_query_cache_size": len(LLM_QUERY_CACHE),
         "fuzzy_match_cache_size": len(FUZZY_MATCH_CACHE)
     }
+
 
 @app.get("/favicon.ico")
 async def favicon():
@@ -1432,6 +1543,36 @@ async def clear_caches_endpoint(request: Request, session_token: Optional[str] =
     clear_caches()
     return JSONResponse({"status": "caches cleared"})
 
+# ---------- Helper Functions ----------
+def get_active_filters_summary(clinical_trials_only: bool, exclude_reviews: bool, year_filter: str) -> str:
+    """Generate a human-readable summary of active filters"""
+    filters = []
+    
+    if clinical_trials_only:
+        filters.append("Clinical trials only")
+    
+    if exclude_reviews:
+        filters.append("Reviews excluded")
+    
+    if year_filter != "all":
+        try:
+            years = int(year_filter)
+            filters.append(f"Past {years} year{'s' if years > 1 else ''}")
+        except ValueError:
+            pass
+    
+    if not filters:
+        return "No filters applied"
+    
+    return "Filters: " + ", ".join(filters)
+
+async def require_authentication(request: Request, session_token: Optional[str] = Cookie(None)):
+    """Check authentication and redirect to login if not authenticated"""
+    is_authenticated = await check_authentication(request, session_token)
+    if not is_authenticated:
+        return RedirectResponse(url="/login", status_code=302)
+    return None  # Continue with request
+
 # ---------- FastAPI Routes ----------
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request, session_token: Optional[str] = Cookie(None)):
@@ -1442,10 +1583,14 @@ async def root(request: Request, session_token: Optional[str] = Cookie(None)):
     
     return templates.TemplateResponse("search.html", {
         "request": request,
-        "results": [],  # Empty list is already JSON serializable
+        "results": [],
         "query": "",
         "total_results": 0,
         "search_time": 0,
+        "max_results": 50,
+        "clinical_trials_only": "false",
+        "exclude_reviews": "false",
+        "year_filter": "all",
         "mean_score": 0
     })
 
@@ -1494,6 +1639,9 @@ async def search_endpoint(
     request: Request, 
     query: str = Form(...), 
     max_results: int = Form(50),
+    clinical_trials_only: str = Form("false"),
+    exclude_reviews: str = Form("false"),
+    year_filter: str = Form("all"),
     session_token: Optional[str] = Cookie(None)
 ):
     is_authenticated = await check_authentication(request, session_token)
@@ -1505,9 +1653,37 @@ async def search_endpoint(
     
     try:
         start_time = time.time()
-        # USE THE OPTIMIZED VERSION
-        results = await perform_concentric_search_ultra_optimized(query.strip(), max_results)
+        
+        # Convert string parameters to boolean
+        clinical_trials_filter = clinical_trials_only.lower() == "true"
+        exclude_reviews_filter = exclude_reviews.lower() == "true"
+        
+        # Check if any filters are actually applied
+        has_filters = (
+            clinical_trials_filter or 
+            exclude_reviews_filter or 
+            (year_filter != "all" and year_filter.strip())
+        )
+        
+        print(f"DEBUG: Filters - CT: {clinical_trials_filter}, ER: {exclude_reviews_filter}, Year: {year_filter}, Has filters: {has_filters}")
+        
+        # Use appropriate search function
+        if has_filters:
+            print("DEBUG: Using filtered search function")
+            results = await perform_concentric_search_ultra_optimized_with_filters(
+                query.strip(), 
+                max_results,
+                clinical_trials_filter,
+                exclude_reviews_filter,
+                year_filter
+            )
+        else:
+            print("DEBUG: Using original search function")
+            # Use the original working function when no filters are applied
+            results = await perform_concentric_search_ultra_optimized(query.strip(), max_results)
+        
         search_time = time.time() - start_time
+        print(f"DEBUG: Found {len(results)} results in {search_time:.2f}s")
         
         # Sort results by total score (highest first) by default
         results.sort(key=lambda x: x.combined_score, reverse=True)
@@ -1522,41 +1698,57 @@ async def search_endpoint(
             "total_results": len(results),
             "search_time": search_time,
             "max_results": max_results,
+            "clinical_trials_only": clinical_trials_only,
+            "exclude_reviews": exclude_reviews,
+            "year_filter": year_filter,
             "mean_score": round(sum(r.combined_score for r in results) / len(results)) if results else 0
         })
         
     except ValueError as e:
+        print(f"DEBUG: ValueError: {e}")
         return templates.TemplateResponse("search.html", {
             "request": request,
             "results": [],
             "query": query,
             "total_results": 0,
             "search_time": 0,
+            "max_results": max_results,
+            "clinical_trials_only": clinical_trials_only,
+            "exclude_reviews": exclude_reviews,
+            "year_filter": year_filter,
             "error": str(e),
             "mean_score": 0
         })
 
     except Exception as e:
+        print(f"DEBUG: Exception: {e}")
+        import traceback
+        traceback.print_exc()
         return templates.TemplateResponse("search.html", {
             "request": request,
             "results": [],
             "query": query,
             "total_results": 0,
             "search_time": 0,
+            "max_results": max_results,
+            "clinical_trials_only": clinical_trials_only,
+            "exclude_reviews": exclude_reviews,
+            "year_filter": year_filter,
             "error": f"Search failed: {str(e)}",
             "mean_score": 0
         })
 
 @app.post("/analyze")
 async def analyze_endpoint(
+    request: Request,
     query: str = Form(...), 
     results_json: str = Form(...),
-    session_token: Optional[str] = Cookie(None),
-    request: Request = None
+    session_token: Optional[str] = Cookie(None)
 ):
-    is_authenticated = await check_authentication(request, session_token)
-    if not is_authenticated:
-        raise HTTPException(status_code=401, detail="Authentication required")
+    # Check auth and redirect if needed
+    auth_redirect = await require_authentication(request, session_token)
+    if auth_redirect:
+        return auth_redirect
     
     try:
         if not OPENAI_API_KEY:
@@ -1626,21 +1818,46 @@ async def analyze_endpoint(
 
 @app.post("/download-ris")
 async def download_ris_endpoint(
+    request: Request,
     query: str = Form(...), 
     max_results: int = Form(100),
-    session_token: Optional[str] = Cookie(None),
-    request: Request = None
+    clinical_trials_only: str = Form("false"),
+    exclude_reviews: str = Form("false"), 
+    year_filter: str = Form("all"),
+    session_token: Optional[str] = Cookie(None)
 ):
-    is_authenticated = await check_authentication(request, session_token)
-    if not is_authenticated:
-        raise HTTPException(status_code=401, detail="Authentication required")
+    # Check auth and redirect if needed
+    auth_redirect = await require_authentication(request, session_token)
+    if auth_redirect:
+        return auth_redirect
     
     try:
         if not query or len(query.strip()) < 2:
             raise HTTPException(status_code=400, detail="Query too short")
         
-        # USE THE OPTIMIZED VERSION
-        results = await perform_concentric_search_ultra_optimized(query.strip(), max_results)
+        # Convert string parameters to boolean
+        clinical_trials_filter = clinical_trials_only.lower() == "true"
+        exclude_reviews_filter = exclude_reviews.lower() == "true"
+        
+        # Check if any filters are actually applied
+        has_filters = (
+            clinical_trials_filter or 
+            exclude_reviews_filter or 
+            (year_filter != "all" and year_filter.strip())
+        )
+        
+        # Use appropriate search function
+        if has_filters:
+            results = await perform_concentric_search_ultra_optimized_with_filters(
+                query.strip(), 
+                max_results,
+                clinical_trials_filter,
+                exclude_reviews_filter,
+                year_filter
+            )
+        else:
+            # Use the original working function when no filters are applied
+            results = await perform_concentric_search_ultra_optimized(query.strip(), max_results)
         
         if not results:
             raise HTTPException(status_code=404, detail="No results found")
@@ -1662,7 +1879,21 @@ async def download_ris_endpoint(
         
         from datetime import datetime
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"pubmed_results_{timestamp}.ris"
+        
+        # Include filter info in filename only if filters are applied
+        if has_filters:
+            filter_info = []
+            if clinical_trials_filter:
+                filter_info.append("clinical-trials")
+            if exclude_reviews_filter:
+                filter_info.append("no-reviews")
+            if year_filter != "all":
+                filter_info.append(f"past-{year_filter}y")
+            
+            filter_suffix = f"_{'_'.join(filter_info)}" if filter_info else ""
+            filename = f"pubmed_results{filter_suffix}_{timestamp}.ris"
+        else:
+            filename = f"pubmed_results_{timestamp}.ris"
         
         return Response(
             content=ris_content,
@@ -1686,9 +1917,10 @@ async def download_synthesis_text_endpoint(
     session_token: Optional[str] = Cookie(None)
 ):
     """Download just the synthesis text file"""
-    is_authenticated = await check_authentication(request, session_token)
-    if not is_authenticated:
-        raise HTTPException(status_code=401, detail="Authentication required")
+    # Check auth and redirect if needed
+    auth_redirect = await require_authentication(request, session_token)
+    if auth_redirect:
+        return auth_redirect
     
     from datetime import datetime
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1719,9 +1951,10 @@ async def download_synthesis_ris_endpoint(
     session_token: Optional[str] = Cookie(None)
 ):
     """Download RIS file for cited papers"""
-    is_authenticated = await check_authentication(request, session_token)
-    if not is_authenticated:
-        raise HTTPException(status_code=401, detail="Authentication required")
+    # Check auth and redirect if needed
+    auth_redirect = await require_authentication(request, session_token)
+    if auth_redirect:
+        return auth_redirect
     
     try:
         pmids_list = json.loads(cited_pmids)
@@ -1784,6 +2017,48 @@ async def download_synthesis_ris_endpoint(
         raise HTTPException(status_code=400, detail="Invalid cited PMIDs data")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate RIS file: {str(e)}")
+
+# Also update the cache management endpoints:
+@app.get("/cache-stats")
+async def cache_stats_endpoint(request: Request, session_token: Optional[str] = Cookie(None)):
+    """Get cache statistics"""
+    auth_redirect = await require_authentication(request, session_token)
+    if auth_redirect:
+        return auth_redirect
+    
+    stats = get_cache_stats()
+    return JSONResponse(stats)
+
+@app.post("/clear-caches") 
+async def clear_caches_endpoint(request: Request, session_token: Optional[str] = Cookie(None)):
+    """Clear all caches"""
+    auth_redirect = await require_authentication(request, session_token)
+    if auth_redirect:
+        return auth_redirect
+    
+    clear_caches()
+    return JSONResponse({"status": "caches cleared"})
+
+# Optional: Add a catch-all for any GET requests to protected endpoints
+@app.get("/search")
+async def search_get_redirect(request: Request, session_token: Optional[str] = Cookie(None)):
+    """Redirect GET requests to /search to the main page"""
+    auth_redirect = await require_authentication(request, session_token)
+    if auth_redirect:
+        return auth_redirect
+    return RedirectResponse(url="/", status_code=302)
+
+# Catch-all route for undefined endpoints
+@app.get("/{path:path}")
+async def catch_all(request: Request, path: str, session_token: Optional[str] = Cookie(None)):
+    """Catch-all route for undefined endpoints"""
+    # Check if user is authenticated
+    auth_redirect = await require_authentication(request, session_token)
+    if auth_redirect:
+        return auth_redirect
+    
+    # If authenticated, redirect to home page
+    return RedirectResponse(url="/", status_code=302)
 
 # ---------- Main ----------
 if __name__ == "__main__":
