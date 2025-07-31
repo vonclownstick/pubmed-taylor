@@ -510,94 +510,223 @@ body {
   border-color: var(--border-primary);
 }
 
-/* Advanced Modal Styles */
-.advanced-modal {
-  max-width: 500px;
+/* FIXED MODAL STYLES */
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0,0,0,0.65); /* FIXED: Less opaque so background shows through faded */
+  backdrop-filter: blur(4px);
+}
+
+.modal-content {
+  background-color: var(--bg-primary);
+  margin: 8% auto; /* FIXED: Moved higher */
+  padding: 1rem; /* FIXED: Reduced padding */
+  border-radius: var(--radius-xl);
   width: 90%;
-  max-height: 90vh;
+  max-width: 480px; /* FIXED: Slightly smaller */
+  text-align: left;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  border: 3px solid rgba(255, 255, 255, 0.4); /* FIXED: Much stronger border */
+}
+
+[data-theme="light"] .modal-content {
+  background-color: #ffffff;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  border: 3px solid rgba(0, 0, 0, 0.3); /* FIXED: Stronger border for light theme */
+}
+
+.advanced-modal {
+  max-width: 480px;
+  width: 90%;
+  max-height: 80vh; /* FIXED: Reduced height */
   overflow-y: auto;
 }
 
+/* FIXED MODAL HEADER */
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--space-xl);
-  padding-bottom: var(--space-lg);
-  border-bottom: 1px solid var(--border-secondary);
+  margin-bottom: 0.75rem; /* FIXED: Reduced spacing */
+  padding-bottom: 0.75rem; /* FIXED: Reduced spacing */
+  border-bottom: 3px solid rgba(255, 255, 255, 0.4); /* FIXED: Much stronger border */
+}
+
+.modal-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.modal-header-icon {
+  width: 24px;
+  height: 24px;
+  color: var(--accent-primary);
+  flex-shrink: 0;
 }
 
 .modal-header h3 {
-  font-size: 1.5rem;
+  font-size: 1.25rem; /* FIXED: Slightly smaller */
   font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.close {
+  color: var(--text-secondary);
+  font-size: 28px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: color var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.close:hover {
   color: var(--text-primary);
 }
 
+/* FIXED FORM STYLES */
 .advanced-form {
   display: flex;
   flex-direction: column;
-  gap: var(--space-xl);
+  gap: 0.75rem; /* FIXED: Reduced spacing */
 }
 
 .form-section {
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
+  gap: 0.5rem; /* FIXED: Reduced spacing */
+  padding: 0.75rem; /* FIXED: Reduced padding */
+  border: 3px solid rgba(255, 255, 255, 0.35); /* FIXED: Much stronger border */
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.05); /* FIXED: Slightly more visible background */
+  transition: all var(--transition-fast);
+}
+
+.form-section:hover {
+  border-color: rgba(255, 255, 255, 0.5); /* FIXED: Even stronger on hover */
+  background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="light"] .form-section {
+  border: 3px solid rgba(0, 0, 0, 0.25); /* FIXED: Strong border for light theme */
+  background: rgba(0, 0, 0, 0.03);
+}
+
+[data-theme="light"] .form-section:hover {
+  border-color: rgba(0, 0, 0, 0.35);
+  background: rgba(0, 0, 0, 0.05);
 }
 
 .form-section label {
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-primary);
-  font-size: 0.875rem;
+  font-size: 0.9rem; /* FIXED: Slightly smaller */
+  margin-bottom: 0.25rem; /* FIXED: Reduced spacing */
 }
 
+/* FIXED SELECT STYLING */
 .form-select {
   background: var(--bg-secondary);
-  border: 1px solid var(--border-primary);
+  border: 3px solid rgba(255, 255, 255, 0.35); /* FIXED: Much stronger border */
   border-radius: var(--radius-md);
-  padding: var(--space-md);
+  padding: 0.65rem; /* FIXED: Reduced padding */
   color: var(--text-primary);
   cursor: pointer;
   transition: all var(--transition-fast);
   outline: none;
-  font-size: 0.875rem;
+  font-size: 0.9rem;
+  font-family: inherit;
 }
 
 .form-select:focus {
-  border-color: var(--accent-primary);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  border-color: rgba(255, 255, 255, 0.6); /* FIXED: Even stronger on focus */
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
 }
 
+.form-select:hover {
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+[data-theme="light"] .form-select {
+  border: 3px solid rgba(0, 0, 0, 0.25);
+}
+
+[data-theme="light"] .form-select:hover {
+  border-color: rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="light"] .form-select:focus {
+  border-color: rgba(0, 0, 0, 0.45);
+}
+
+/* FIXED CHECKBOX GROUP */
 .checkbox-group {
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
+  gap: 0.5rem; /* FIXED: Reduced spacing */
+  padding: 0.5rem; /* FIXED: Reduced padding */
+  background: var(--bg-secondary);
+  border: 2px solid rgba(255, 255, 255, 0.25); /* FIXED: Stronger border */
+  border-radius: var(--radius-md);
 }
 
+[data-theme="light"] .checkbox-group {
+  border: 2px solid rgba(0, 0, 0, 0.2);
+}
+
+/* FIXED CHECKBOX LABELS */
 .checkbox-label {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
+  gap: 0.5rem; /* FIXED: Reduced spacing */
   cursor: pointer;
-  font-size: 0.875rem;
+  font-size: 0.9rem;
   color: var(--text-secondary);
-  transition: color var(--transition-fast);
+  transition: all var(--transition-fast);
+  padding: 0.4rem 0.5rem; /* FIXED: Reduced padding */
+  border-radius: var(--radius-sm);
+  border: 2px solid rgba(255, 255, 255, 0.15); /* FIXED: Stronger border */
 }
 
 .checkbox-label:hover {
   color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.3); /* FIXED: Stronger on hover */
 }
 
+[data-theme="light"] .checkbox-label {
+  border: 2px solid rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .checkbox-label:hover {
+  border-color: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.03);
+}
+
+/* FIXED CHECKBOX STYLING */
 .checkbox-label input[type="checkbox"] {
   appearance: none;
-  width: 18px;
+  width: 18px; /* FIXED: Slightly smaller */
   height: 18px;
-  border: 2px solid var(--border-primary);
+  border: 3px solid rgba(255, 255, 255, 0.4); /* FIXED: Much stronger border */
   border-radius: var(--radius-sm);
   background: var(--bg-secondary);
   cursor: pointer;
   position: relative;
   transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.checkbox-label input[type="checkbox"]:hover {
+  border-color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .checkbox-label input[type="checkbox"]:checked {
@@ -614,49 +743,93 @@ body {
   color: white;
   font-size: 12px;
   font-weight: bold;
+  line-height: 1;
 }
 
 .checkbox-label input[type="checkbox"]:focus {
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+  outline: none;
 }
 
+[data-theme="light"] .checkbox-label input[type="checkbox"] {
+  border: 3px solid rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="light"] .checkbox-label input[type="checkbox"]:hover {
+  border-color: rgba(0, 0, 0, 0.45);
+}
+
+/* FIXED MODAL FOOTER */
 .modal-footer {
   display: flex;
   justify-content: flex-end;
-  gap: var(--space-md);
-  padding-top: var(--space-lg);
-  border-top: 1px solid var(--border-secondary);
+  gap: 0.75rem; /* FIXED: Reduced spacing */
+  padding-top: 0.75rem; /* FIXED: Reduced spacing */
+  border-top: 3px solid rgba(255, 255, 255, 0.4); /* FIXED: Much stronger border */
+  margin-top: 0.75rem; /* FIXED: Reduced spacing */
+}
+
+[data-theme="light"] .modal-footer {
+  border-top: 3px solid rgba(0, 0, 0, 0.25);
 }
 
 .btn-primary, .btn-secondary {
-  padding: var(--space-md) var(--space-xl);
+  padding: 0.6rem 1.2rem; /* FIXED: Reduced padding */
   border-radius: var(--radius-md);
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   transition: all var(--transition-fast);
-  border: none;
-  font-size: 0.875rem;
+  border: 2px solid transparent;
+  font-size: 0.9rem;
+  font-family: inherit;
 }
 
 .btn-primary {
   background: var(--accent-primary);
   color: white;
+  border-color: var(--accent-primary);
 }
 
 .btn-primary:hover {
   background: var(--accent-primary-hover);
+  border-color: var(--accent-primary-hover);
   transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
 .btn-secondary {
-  background: var(--bg-glass);
+  background: rgba(255, 255, 255, 0.05);
   color: var(--text-secondary);
-  border: 1px solid var(--border-primary);
+  border: 2px solid rgba(255, 255, 255, 0.3); /* FIXED: Stronger border */
 }
 
 .btn-secondary:hover {
-  background: var(--bg-glass-hover);
+  background: rgba(255, 255, 255, 0.08);
   color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.5); /* FIXED: Stronger on hover */
+  transform: translateY(-1px);
+}
+
+[data-theme="light"] .btn-secondary {
+  border: 2px solid rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.03);
+}
+
+[data-theme="light"] .btn-secondary:hover {
+  border-color: rgba(0, 0, 0, 0.35);
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.modal-subtitle {
+  font-style: italic;
+  color: var(--text-secondary);
+  margin: 0.5rem 0;
+}
+
+.modal-version {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-top: 1rem;
 }
 
 /* Results Section */
@@ -1166,60 +1339,6 @@ body {
   background: #450a0a;
   color: #fca5a5;
   border-color: #7f1d1d;
-}
-
-/* Modal Styles */
-.modal {
-  display: none;
-  position: fixed;
-  z-index: 1000;
-  left: 0;
-  top: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0,0,0,0.8);
-}
-
-.modal-content {
-  background-color: var(--bg-primary);
-  margin: 15% auto;
-  padding: 2rem;
-  border-radius: 0.75rem;
-  width: 90%;
-  max-width: 500px;
-  text-align: center;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-  border: 1px solid var(--border-color);
-}
-
-[data-theme="light"] .modal-content {
-  background-color: #ffffff;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-  border: 1px solid #e5e7eb;
-}
-
-.close {
-  color: var(--text-secondary);
-  float: right;
-  font-size: 28px;
-  font-weight: bold;
-  cursor: pointer;
-}
-
-.close:hover {
-  color: var(--text-primary);
-}
-
-.modal-subtitle {
-  font-style: italic;
-  color: var(--text-secondary);
-  margin: 0.5rem 0;
-}
-
-.modal-version {
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-  margin-top: 1rem;
 }
 
 /* PMID Link Styles */
