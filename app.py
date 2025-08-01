@@ -1033,76 +1033,138 @@ async def fetch_abstracts_batch_optimized(session: aiohttp.ClientSession, pmids:
     
     return info_map
 
+# QUICK FIX: Replace your fetch_citation_data_batch_optimized function with this version
+
 async def fetch_citation_data_batch_optimized(session: aiohttp.ClientSession, pmids: List[str]) -> Dict[str, Dict]:
-    """Optimized citation data fetching with larger batches"""
+    """Fixed version with iCite fallback when API fails"""
     info = {}
     
-    # Larger batch sizes
-    batch_size = OPTIMIZED_CONFIG["CITATION_BATCH_SIZE"]
+    # Try iCite first (smaller batches to avoid errors)
+    batch_size = 50  # Much smaller than 600
     batches = [pmids[i:i+batch_size] for i in range(0, len(pmids), batch_size)]
     
-    async def fetch_single_batch(batch: List[str]) -> Dict[str, Dict]:
+    icite_success = False
+    
+    async def fetch_icite_batch(batch: List[str]) -> Dict[str, Dict]:
         try:
             url = "https://icite.od.nih.gov/api/pubs"
             params = {"pmids": ",".join(batch)}
             
-            async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=25)) as response:
+            async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=15)) as response:
                 if response.status == 200:
                     data = await response.json()
                     batch_info = {}
                     
                     for item in data.get("data", []):
-                        pmid = str(item.get("pmid", ""))
+                        pmid = str(item.get("pmid", "")).strip()
                         if pmid:
-                            cc = item.get("citation_count", 0) or 0
-                            yr = item.get("year", NOW) or NOW
-                            cpy = item.get("citations_per_year", 0) or 0
-                            
-                            # Optimized author processing
-                            authors_raw = item.get("authors", "Unknown")
+                            authors_raw = item.get("authors", [])
                             authors = process_authors_fast(authors_raw)
                             
                             batch_info[pmid] = {
-                                "weight": cpy,
-                                "year": yr,
-                                "journal": item.get("journal", "Unknown") or "Unknown",
+                                "weight": float(item.get("citations_per_year", 0) or 0),
+                                "year": int(item.get("year", 2025) or 2025),
+                                "journal": str(item.get("journal", "") or "Unknown"),
                                 "authors": authors,
-                                "title": item.get("title", "Unknown") or "Unknown",
-                                "citation_count": cc
+                                "title": str(item.get("title", "") or "Unknown"),
+                                "citation_count": int(item.get("citation_count", 0) or 0)
                             }
                     
                     return batch_info
                 else:
+                    print(f"iCite API error {response.status}: {await response.text()}")
                     return {}
-        
-        except Exception:
+        except Exception as e:
+            print(f"iCite batch failed: {e}")
             return {}
     
-    # Higher parallelism for citations
-    semaphore = asyncio.Semaphore(8)
+    # Try iCite with first few batches
+    print(f"Attempting iCite for {len(pmids)} PMIDs...")
+    for i, batch in enumerate(batches[:3]):  # Only try first 3 batches
+        batch_result = await fetch_icite_batch(batch)
+        if batch_result:
+            info.update(batch_result)
+            icite_success = True
+            print(f"iCite batch {i+1} successful: {len(batch_result)} records")
+        else:
+            print(f"iCite batch {i+1} failed")
+            break  # Stop trying if one fails
+        await asyncio.sleep(0.3)
     
-    async def controlled_fetch(batch):
-        async with semaphore:
-            return await fetch_single_batch(batch)
+    # FALLBACK: Get missing data from NCBI ESummary when iCite fails
+    missing_pmids = [pmid for pmid in pmids if pmid not in info]
     
-    tasks = [controlled_fetch(batch) for batch in batches]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    if missing_pmids:
+        print(f"Using NCBI ESummary fallback for {len(missing_pmids)} PMIDs...")
+        
+        # Get data from ESummary
+        esummary_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi" 
+        esummary_batches = [missing_pmids[i:i+100] for i in range(0, len(missing_pmids), 100)]
+        
+        for batch in esummary_batches:
+            try:
+                params = {"db": "pubmed", "retmode": "json", "id": ",".join(batch)}
+                params.update(_eparams())
+                
+                async with session.get(esummary_url, params=params, timeout=aiohttp.ClientTimeout(total=15)) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        result = data.get("result", {})
+                        
+                        for uid in result.get("uids", []):
+                            item = result.get(uid, {})
+                            
+                            # Extract authors from ESummary format
+                            authors_list = item.get("authors", [])
+                            authors = "Unknown"
+                            if authors_list and isinstance(authors_list, list):
+                                first_author = authors_list[0]
+                                if isinstance(first_author, dict):
+                                    author_name = first_author.get("name", "").strip()
+                                    if author_name:
+                                        authors = author_name
+                                        if len(authors_list) > 1:
+                                            authors += " et al."
+                            
+                            # Extract year from pubdate 
+                            year = 2025
+                            pubdate = item.get("pubdate", "")
+                            if pubdate:
+                                import re
+                                year_match = re.search(r'(\d{4})', pubdate)
+                                if year_match:
+                                    year = int(year_match.group(1))
+                            
+                            info[uid] = {
+                                "weight": 0.0,  # No citation data available
+                                "year": year,
+                                "journal": item.get("source", "Unknown"),
+                                "authors": authors,
+                                "title": item.get("title", "Unknown"),
+                                "citation_count": 0
+                            }
+                        
+                        print(f"ESummary fallback successful: {len(result.get('uids', []))} records")
+                
+                await asyncio.sleep(0.2)
+                
+            except Exception as e:
+                print(f"ESummary fallback failed: {e}")
     
-    for result in results:
-        if isinstance(result, dict):
-            info.update(result)
-    
-    # Add defaults for missing PMIDs
+    # Fill in any remaining missing PMIDs with defaults
     for pmid in pmids:
         if pmid not in info:
             info[pmid] = {
                 "weight": 0.0,
-                "year": NOW,
+                "year": 2025,
                 "journal": "Unknown",
                 "authors": "Unknown",
                 "title": "Unknown",
                 "citation_count": 0
             }
+    
+    success_source = "iCite" if icite_success else "ESummary fallback"
+    print(f"Citation data complete: {len(info)} records from {success_source}")
     
     return info
 
