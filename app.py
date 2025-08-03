@@ -30,6 +30,15 @@ from fastapi.responses import HTMLResponse, Response, JSONResponse, RedirectResp
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 
+# Import the PMID validator - with error handling
+try:
+    from pmid_validator import SummaryValidator
+    PMID_VALIDATION_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: PMID validation not available: {e}")
+    PMID_VALIDATION_AVAILABLE = False
+    SummaryValidator = None
+
 # Initialize FastAPI app and templates
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
@@ -448,8 +457,8 @@ def calculate_total_weight(year: int, citations_per_year: float, journal_impact:
     return round(total_weight, 2)
 
 # ---------- AI Analysis Functions ----------
-async def analyze_with_ai(results: List[SearchResult], query: str) -> Dict:
-    """Send results to AI for relevance ranking and summary generation"""
+async def analyze_with_ai(results: List[SearchResult], query: str, custom_synthesis_requirements: str = "") -> Dict:
+    """Send results to AI for relevance ranking and summary generation with PMID validation"""
     if not OPENAI_API_KEY:
         raise ValueError("OpenAI API key not configured")
     
@@ -467,45 +476,45 @@ async def analyze_with_ai(results: List[SearchResult], query: str) -> Dict:
             "year": result.year
         })
     
+    # Define the default synthesis requirements
+    default_synthesis_requirements = """A comprehensive synthesis organized as exactly 3 distinct paragraphs with MULTIPLE citations in each paragraph
+
+SYNTHESIS REQUIREMENTS:
+- Write exactly 3 distinct paragraphs separated by double line breaks
+- Each paragraph should be 4-6 sentences long
+- Paragraph 1: Overview and background - cite at least 4-5 relevant papers
+- Paragraph 2: Key findings and methods - cite at least 4-5 relevant papers  
+- Paragraph 3: Clinical implications and future directions - cite at least 3-4 relevant papers"""
+    
+    # Use custom requirements if provided and non-empty, otherwise use default
+    if custom_synthesis_requirements and custom_synthesis_requirements.strip():
+        synthesis_section = custom_synthesis_requirements.strip()
+        print(f"[AI ANALYSIS] Using custom synthesis requirements: {synthesis_section[:100]}...")
+    else:
+        synthesis_section = default_synthesis_requirements
+        print("[AI ANALYSIS] Using default synthesis requirements")
+
+    # Build the complete prompt with the synthesis section
     prompt = f"""You are analyzing scientific papers for relevance to the research question: "{query}"
 
 Please analyze these {len(papers_data)} papers and provide:
 
 1. A ranked list of PMIDs from most relevant to least relevant based on title and abstract content
-2. A comprehensive synthesis organized as exactly 3 distinct paragraphs
-
-SYNTHESIS REQUIREMENTS:
-- Write exactly 3 paragraphs separated by blank lines
-- Paragraph 1: Overview of the research landscape and main themes (avoid a vague initial sentence, just jump into content!)
-- Paragraph 2: Key findings and methodological approaches  
-- Paragraph 3: Implications, gaps, and future directions identified in abstracts
-- Only reference papers provided using format (PMID: 12345678)
-- Include multiple relevant PMIDs throughout each paragraph
+2. {synthesis_section}
+- Use format (PMID: 12345678) for all citations; if multiple citations, use a comma like (PMID: 12345678, PMID: 12345679)
+- Distribute citations across ALL THREE paragraphs - do not put all citations in one paragraph
 - Focus on findings most relevant to: "{query}"
-- Use scientific writing style: 
 
-STYLE
-- Vary sentence lengths and shapes. Target ~25–35% short (<10 words), 45–60% medium (10–20), 10–25% long (20+).
-- Avoid hedging statements and stock disclaimers ("It is important to note that…", "Of note…"). 
+CITATION REQUIREMENTS:
+- You MUST cite at least 10-12 different PMIDs total across all paragraphs
+- Each paragraph MUST contain multiple citations (not just 1-2)
+- Only cite PMIDs from the provided papers list
+- Ensure citations are relevant to the content of each paragraph
 
-LEXICON (SOFT AVOID LIST)
-Use plain, specific words over buzzwords. DO NOT USE these words: moreover, furthermore, additionally, thus, therefore, consequently, accordingly, indeed, robust, comprehensive, nuanced, holistic, landscape, realm, framework, granular, cohesive, leverage/leveraging, empower/empowering, unlock, harness, transformative, synergy/synergistic, unprecedented, pivotal, imperative, cornerstone, mitigate, underscore, elucidate, articulate, navigate, pertaining, noteworthy, tapestry, amidst, akin, delve, foster, foray, vital, vibrant, undeniably/undoubtedly.
-→ Replace with concrete, domain-specific nouns/verbs and precise adjectives.
-
-CONTENT
-- Never fabricate citations or quotes. Do not include "As an AI…" self-references.
-
-OUTPUT
-- Produce continuous professional scientific avoiding bullets, steps, or a table.
-
-INTERNAL SELF-CHECK (DO NOT PRINT)
-Before returning the final text, silently verify:
-1) Sentence starts using transition starters ≤15%.
-2) Hedging phrases ≤1 per ~200 words and replaced with precise qualifiers where possible.
-3) "Soft avoid" lexicon frequency near zero; replaced with concrete alternatives.
-4) Paragraph lengths vary (no uniform 3–4 sentences each), and no templated intro/body/conclusion pattern.
-5) Details included when appropriate.
-Return only the final text.
+STYLE:
+- Use scientific writing style with varied sentence lengths
+- Avoid buzzwords and hedging language
+- Be specific and factual
 
 Papers to analyze:
 {json.dumps(papers_data, indent=2)}
@@ -513,9 +522,10 @@ Papers to analyze:
 Respond in this exact JSON format:
 {{
   "ranked_pmids": ["pmid1", "pmid2", "pmid3", ...],
-  "synthesis": "Paragraph 1 content here with citations (PMID: 12345678).\\n\\nParagraph 2 content here with more citations (PMID: 87654321).\\n\\nParagraph 3 content here with final citations (PMID: 11223344)."
+  "synthesis": "Your synthesis content following the structure specified above, with proper paragraph breaks (\\n\\n) and citations (PMID: 12345678) distributed throughout."
 }}"""
 
+    # Rest of the function remains the same...
     try:
         headers = {
             "Authorization": f"Bearer {OPENAI_API_KEY}",
@@ -551,7 +561,7 @@ Respond in this exact JSON format:
                 raise ValueError("AI response missing required fields")
             
             ranked_pmids = parsed_result["ranked_pmids"]
-            synthesis = parsed_result["synthesis"]
+            initial_synthesis = parsed_result["synthesis"]
             
             original_pmids = {r.pmid for r in results}
             valid_ranked_pmids = [pmid for pmid in ranked_pmids if pmid in original_pmids]
@@ -559,9 +569,43 @@ Respond in this exact JSON format:
             if not valid_ranked_pmids:
                 raise ValueError("No valid PMIDs in AI ranking")
             
+            # NEW: Validate and clean the synthesis
+            print("[AI ANALYSIS] Starting PMID validation of synthesis...")
+            
+            # Check if validation is available
+            if not PMID_VALIDATION_AVAILABLE or not SummaryValidator:
+                print("[AI ANALYSIS] PMID validation not available, returning unvalidated synthesis")
+                return {
+                    "ranked_pmids": valid_ranked_pmids,
+                    "synthesis": initial_synthesis,
+                    "initial_synthesis": initial_synthesis,
+                    "validation_history": [],
+                    "success": True
+                }
+            
+            validator = SummaryValidator(OPENAI_API_KEY, OPENAI_MODEL, custom_synthesis_requirements)
+            validator.debug = True
+            
+            # Convert SearchResult objects to dict format for validator
+            search_results_dict = [result.to_dict() for result in results]
+            
+            # Clean the synthesis iteratively
+            cleaned_synthesis, validation_history = await validator.clean_summary_iteratively(
+                initial_synthesis, search_results_dict, max_iterations=3
+            )
+            
+            print(f"[AI ANALYSIS] Validation complete. Used {len(validation_history)} iteration(s)")
+            
+            # Log validation results
+            final_validation = validation_history[-1]['validation'] if validation_history else {'valid': True}
+            if not final_validation['valid']:
+                print(f"[AI ANALYSIS] Warning: Final synthesis still has {len(final_validation.get('missing_pmids', []))} missing and {len(final_validation.get('invalid_pmids', []))} invalid PMIDs")
+            
             return {
                 "ranked_pmids": valid_ranked_pmids,
-                "synthesis": synthesis,
+                "synthesis": cleaned_synthesis,
+                "initial_synthesis": initial_synthesis,
+                "validation_history": validation_history,
                 "success": True
             }
             
@@ -569,6 +613,9 @@ Respond in this exact JSON format:
             return {"success": False, "error": "Failed to parse AI response"}
             
     except Exception as e:
+        print(f"[AI ANALYSIS] Error: {e}")
+        import traceback
+        traceback.print_exc()
         return {"success": False, "error": str(e)}
 
 # ---------- Advanced Search Filter Functions ----------
@@ -1805,6 +1852,7 @@ async def analyze_endpoint(
     request: Request,
     query: str = Form(...), 
     results_json: str = Form(...),
+    custom_synthesis_requirements: str = Form(""),  # Add this parameter
     session_token: Optional[str] = Cookie(None)
 ):
     # Check auth and redirect if needed
@@ -1836,7 +1884,8 @@ async def analyze_endpoint(
             )
             results.append(result)
         
-        analysis_result = await analyze_with_ai(results, query)
+        # Pass custom synthesis requirements to AI analysis
+        analysis_result = await analyze_with_ai(results, query, custom_synthesis_requirements)
         
         if not analysis_result.get("success", False):
             raise HTTPException(status_code=500, detail=analysis_result.get("error", "AI analysis failed"))
@@ -1867,11 +1916,30 @@ async def analyze_endpoint(
                 'ai_rank': result.ai_rank
             })
         
-        return JSONResponse({
+        # Prepare response with validation information
+        response_data = {
             "success": True,
             "synthesis": analysis_result["synthesis"],
             "results": results_json_output
-        })
+        }
+
+        # Add validation information if available
+        validation_history = analysis_result.get("validation_history", [])
+        if validation_history:
+            final_validation = validation_history[-1]['validation']
+            response_data["validation_info"] = {
+                "iterations_used": len(validation_history),
+                "final_valid": final_validation['valid'],
+                "missing_pmids": final_validation.get('missing_pmids', []),
+                "invalid_pmids": final_validation.get('invalid_pmids', []),
+                "total_issues_found": len(final_validation.get('missing_pmids', [])) + len(final_validation.get('invalid_pmids', []))
+            }
+            
+            # If there was an initial vs final synthesis difference, include that info
+            if analysis_result.get("initial_synthesis") != analysis_result["synthesis"]:
+                response_data["validation_info"]["synthesis_was_cleaned"] = True
+
+        return JSONResponse(response_data)
         
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid results data")

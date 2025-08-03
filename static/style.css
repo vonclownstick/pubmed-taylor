@@ -1828,3 +1828,176 @@ a:focus-visible {
     margin-bottom: 1rem;
   }
 }
+
+/* Action Button Groups */
+.action-btn-group {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+/* Fix lightning button height and hover gradient */
+.lightning-btn {
+    background: var(--accent-gradient) !important;
+    border: none;
+    border-radius: var(--radius-md);
+    padding: 0.5rem;
+    color: white !important;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 50px;  /* Match other button heights */
+    height: 50px; /* Match other button heights */
+    opacity: 1;   /* Remove opacity reduction */
+}
+
+.lightning-btn:hover {
+    background: var(--accent-gradient-hover) !important;
+    color: white !important;
+    opacity: 1;
+    transform: translateY(-1px) scale(1.05);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+}
+
+.lightning-btn svg {
+    transform: rotate(-10deg);
+}
+
+.lightning-btn:hover svg {
+    animation: lightning-pulse 0.3s ease;
+}
+
+@keyframes lightning-pulse {
+    0% { transform: rotate(-10deg) scale(1); }
+    50% { transform: rotate(-5deg) scale(1.1); }
+    100% { transform: rotate(-10deg) scale(1); }
+}
+
+/* Help Button Styling - Fixed to match other header buttons */
+.help-btn {
+    background: var(--bg-glass);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-lg); /* Changed from var(--radius-md) */
+    padding: var(--space-sm); /* Added padding like theme toggle */
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-fast); /* Changed from 0.2s ease */
+    backdrop-filter: var(--backdrop-blur); /* Use CSS variable */
+    position: relative; /* Added to match theme toggle */
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.help-btn:hover {
+    background: var(--bg-glass-hover);
+    color: var(--text-primary);
+    transform: translateY(-1px);
+}
+
+.help-btn:active {
+    transform: translateY(0);
+}
+
+/* Help Modal Styling */
+.help-modal {
+    max-width: 800px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.help-content {
+    padding: 0;
+}
+
+.help-section {
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border-secondary);
+}
+
+.help-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.help-section h4 {
+    margin: 0 0 1rem 0;
+    color: var(--text-primary);
+    font-size: 1.1rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.help-section ul {
+    margin: 0;
+    padding-left: 1.5rem;
+    list-style-type: disc;
+}
+
+.help-section li {
+    margin-bottom: 0.75rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+}
+
+.help-section li strong {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.help-section p {
+    margin: 0 0 1rem 0;
+    line-height: 1.6;
+    color: var(--text-secondary);
+}
+
+.contact-section {
+    background: var(--bg-glass);
+    padding: 1.5rem;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-primary);
+}
+
+.contact-section p {
+    margin-bottom: 0.5rem;
+}
+
+.contact-section p:last-child {
+    margin-bottom: 0;
+    font-style: italic;
+    opacity: 0.8;
+}
+
+/* Responsive adjustments for help modal */
+@media (max-width: 768px) {
+    .help-modal {
+        max-width: 95vw;
+        max-height: 85vh;
+        margin: 2rem auto;
+    }
+    
+    .help-section {
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+    }
+    
+    .help-section h4 {
+        font-size: 1rem;
+    }
+    
+    .help-section ul {
+        padding-left: 1.25rem;
+    }
+    
+    .help-section li {
+        margin-bottom: 0.5rem;
+        font-size: 0.9rem;
+    }
+}

@@ -27,6 +27,14 @@
                 </div>
                 
                 <div class="header-actions">
+                    <button class="help-btn" id="helpBtn" aria-label="Help & Documentation" onclick="openHelpModal()">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M9.09 8.5a3 3 0 0 1 5.83 1c0 2-3 3-3 3.5v1.5"/>
+                            <circle cx="12" cy="17.5" r=".5" fill="currentColor"/>
+                        </svg>
+                    </button>
+                    
                     <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
                         <svg class="theme-icon theme-icon-light" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="12" cy="12" r="5"/>
@@ -142,20 +150,31 @@
                     </div>
                     
                     <div class="results-actions">
-                        <button class="action-btn" id="analyzeBtn">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M9 11H1v3h8v3l3-4-3-4v2zM22 12l-3-4v2h-8v3h8v3l3-4z"/>
-                            </svg>
-                            AI Analysis
-                        </button>
+                        <div class="action-btn-group">
+                            <button class="action-btn" id="analyzeBtn">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M9 11H1v3h8v3l3-4-3-4v2zM22 12l-3-4v2h-8v3h8v3l3-4z"/>
+                                </svg>
+                                AI Analysis
+                            </button>
+                        </div>
                         
-                        <button class="action-btn" id="exportBtn">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                <polyline points="7,10 12,15 17,10"/>
-                                <line x1="12" y1="15" x2="12" y2="3"/>
+                        <div class="action-btn-group">
+                            <button class="action-btn" id="exportBtn">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                    <polyline points="7,10 12,15 17,10"/>
+                                    <line x1="12" y1="15" x2="12" y2="3"/>
+                                </svg>
+                                Export RIS
+                            </button>
+                        </div>
+                        
+                        <!-- Lightning bolt moved to far right -->
+                        <button class="action-btn lightning-btn" onclick="openCustomPromptModal()" title="Customize Analysis Prompt">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="13,2 3,14 12,14 11,22 21,10 12,10 13,2"/>
                             </svg>
-                            Export RIS
                         </button>
                     </div>
                 </div>
@@ -305,6 +324,7 @@
         <input type="hidden" name="max_results" value="{{ max_results or 100 }}">
     </form>
 
+
     <!-- About Modal -->
     <div id="aboutModal" class="modal">
         <div class="modal-content">
@@ -312,7 +332,7 @@
             <h2>PubMed (Taylor's Version)</h2>
             <p class="modal-subtitle">AI-driven search and reference ranking for tortured poets</p>
             <p class="modal-text">&copy; 2025 MGB Center for Quantitative Health. Because the robots will get us eventually but probably not today.</p>
-            <p class="modal-version">Version: July 28, 2025</p>
+            <p class="modal-version">Version: August 1, 2025</p>
         </div>
     </div>
 
@@ -374,6 +394,122 @@
                     <button type="button" class="btn-primary" onclick="applyAdvancedOptions()">Apply</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Custom Prompt Modal -->
+    <div id="customPromptModal" class="modal">
+        <div class="modal-content advanced-modal">
+            <div class="modal-header">
+                <div class="modal-header-left">
+                    <svg class="modal-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="13,2 3,14 12,14 11,22 21,10 12,10 13,2"/>
+                    </svg>
+                    <h3>Custom Prompt</h3>
+                </div>
+                <span class="close" onclick="closeCustomPromptModal()">&times;</span>
+            </div>
+            
+            <form class="advanced-form" id="customPromptForm">
+                <div class="form-section">
+                    <label for="customSynthesisRequirements">Synthesis Requirements:</label>
+                    <textarea 
+                        id="customSynthesisRequirements" 
+                        rows="12" 
+                        style="width: 100%; padding: 0.75rem; border-radius: var(--radius-md); border: 1px solid var(--border-primary); background: var(--bg-secondary); color: var(--text-primary); font-family: 'Inter', monospace; font-size: 0.875rem; line-height: 1.4; resize: vertical;"
+                    ></textarea>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="resetCustomPrompt()">Reset to Default</button>
+                    <button type="button" class="btn-primary" onclick="saveCustomPrompt()">Save & Close</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Help Modal -->
+    <div id="helpModal" class="modal">
+        <div class="modal-content help-modal">
+            <div class="modal-header">
+                <div class="modal-header-left">
+                    <svg class="modal-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M9.09 8.5a3 3 0 0 1 5.83 1c0 2-3 3-3 3.5v1.5"/>
+                        <circle cx="12" cy="17.5" r=".5" fill="currentColor"/>
+                    </svg>
+                    <h3>What is this thing and how does it work?</h3>
+                </div>
+                <span class="close" onclick="closeHelpModal()">&times;</span>
+            </div>
+            
+            <div class="help-content">
+
+                <div class="help-section">
+                    <h4>Overview</h4>
+                    <p>This tool augments PubMed search to mirror human iteration, including...</p>
+                    <ul>
+                        <li><strong>Multi-strategy query</strong> generation for comprehensive coverage</li>
+                        <li><strong>Filtered results</strong> for relevance to original query</li>
+                        <li><strong>Content analysis and synthesis</strong> via large language models</li>
+                        <li><strong>Automated citation validation</strong> and correction, no more hallucination</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h4>Search Features</h4>
+                    <ul>
+                        <li><strong>Natural Language Queries:</strong> Describe your research question in plain English</li>
+                        <li><strong>Advanced Filters:</strong> Use the gear icon to filter by study type, publication date, and result count</li>
+                        <li><strong>Smart Query Generation:</strong> Automagically broaden/narrow/optimize PubMed search strategies</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h4>Analytic Features</h4>
+                    <ul>
+                        <li><strong>Relevance Ranking:</strong> Results re-ranked based on content relevance to your query</li>
+                        <li><strong>Literature Synthesis:</strong> Generates comprehensive summaries with proper citations</li>
+                        <li><strong>Custom Prompts:</strong> Use the lightning bolt (⚡) to customize prompt</li>
+                        <li><strong>Citation Validation:</strong> Automatically verifies and corrects PMID references</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h4>Understanding Results</h4>
+                    <ul>
+                        <li><strong>Strategy:</strong> Shows which search strategy found each paper</li>
+                        <li><strong>IF (Impact Factor):</strong> Journal impact factor when available</li>
+                        <li><strong>Citations/Year:</strong> Average annual citations from iCite database</li>
+                        <li><strong>Total Score:</strong> Proprietary metric including recency, citations, and impact factor</li>
+                        <li><strong>AI Rank:</strong> AI-determined relevance ranking (appears after analysis)</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h4>Export Options</h4>
+                    <ul>
+                        <li><strong>Export RIS:</strong> Download all results in RIS format for reference managers</li>
+                        <li><strong>Download Synthesis:</strong> Get both text summary and RIS file for cited papers</li>
+                        <li><strong>Hover Citations:</strong> Hover over PMID links in synthesis for paper details</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h4>Advanced Tips</h4>
+                    <ul>
+                        <li><strong>Sorting:</strong> Click sort buttons to reorder by date, citations, AI rank, or total score</li>
+                        <li><strong>Custom Analysis:</strong> Use the lightning bolt to custom-prompt synthesis structure and requirements</li>
+                    </ul>
+                </div>
+
+                <div class="help-section contact-section">
+                    <h4>📞 Support</h4>
+                    <p>For technical support or feature requests, contact:</p>
+                    <p><strong>MGB Center for Quantitative Health</strong><br>
+                    <em>Because the robots will get us eventually but probably not today.</em></p>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -447,12 +583,20 @@
         window.onclick = function(event) {
             const aboutModal = document.getElementById('aboutModal');
             const advancedModal = document.getElementById('advancedModal');
+            const customPromptModal = document.getElementById('customPromptModal');
+            const helpModal = document.getElementById('helpModal'); // Add this line
             
             if (event.target == aboutModal) {
                 aboutModal.style.display = 'none';
             }
             if (event.target == advancedModal) {
                 advancedModal.style.display = 'none';
+            }
+            if (event.target == customPromptModal) { // Add this block
+                closeCustomPromptModal();
+            }
+            if (event.target == helpModal) { // Add this block
+                closeHelpModal();
             }
         }
 
@@ -742,6 +886,7 @@
         const analysisContent = document.getElementById('analysisContent');
         const aiRankSortBtn = document.getElementById('aiRankSortBtn');
 
+        // Updated AI Analysis functionality to use custom prompt
         if (analyzeBtn) {
             analyzeBtn.addEventListener('click', async () => {
                 if (!currentResults || currentResults.length === 0) {
@@ -772,10 +917,41 @@
                     combined_score: r.combined_score || 0
                 }));
 
-                document.getElementById('resultsJson').value = JSON.stringify(resultsData);
-
                 try {
-                    const formData = new FormData(document.getElementById('analyzeForm'));
+                    // Create form data
+                    const formData = new FormData();
+                    formData.append('query', document.querySelector('input[name="query"]').value);
+                    formData.append('results_json', JSON.stringify(resultsData));
+
+                    // Enhanced logging and custom requirements handling
+                    console.log('Custom requirements status:');
+                    console.log('- customSynthesisRequirements exists:', !!customSynthesisRequirements);
+                    console.log('- Is trimmed and non-empty:', !!(customSynthesisRequirements && customSynthesisRequirements.trim()));
+                    console.log('- Different from default:', customSynthesisRequirements !== defaultSynthesisRequirements);
+
+                    if (customSynthesisRequirements && 
+                        customSynthesisRequirements.trim() && 
+                        customSynthesisRequirements !== defaultSynthesisRequirements) {
+                        
+                        formData.append('custom_synthesis_requirements', customSynthesisRequirements);
+                        console.log('✅ Using custom synthesis requirements:');
+                        console.log('First 200 chars:', customSynthesisRequirements.substring(0, 200) + '...');
+                        
+                        // Also log to the UI
+                        console.log('Adding custom prompt indicator to analysis status...');
+                        analysisStatus.innerHTML = `
+                            <div class="loading-spinner"></div>
+                            <span>Analyzing literature with custom prompt...</span>
+                        `;
+                    } else {
+                        console.log('📝 Using default synthesis requirements');
+                        console.log('Reason:', 
+                            !customSynthesisRequirements ? 'No custom requirements set' :
+                            !customSynthesisRequirements.trim() ? 'Custom requirements is empty/whitespace' :
+                            'Custom requirements same as default'
+                        );
+                    }
+
                     const response = await fetch('/analyze', {
                         method: 'POST',
                         body: formData
@@ -790,7 +966,47 @@
                         // Convert PMID references to clickable links and display synthesis
                         const enhancedSynthesis = convertPMIDsToLinks(data.synthesis, data.results || currentResults);
                         const synthesisHtml = enhancedSynthesis.replace(/\n\n/g, '</p><p>');
-                        analysisContent.innerHTML = `<p>${synthesisHtml}</p>`;
+                        
+                        let analysisContentHtml = `<p>${synthesisHtml}</p>`;
+                        
+                        // Add validation information if available
+                        if (data.validation_info) {
+                            const validation = data.validation_info;
+                            let validationHtml = '<div class="validation-info" style="margin-top: 1.5rem; padding: 1rem; background: var(--bg-glass); border-radius: var(--radius-lg); border: 1px solid var(--border-primary);">';
+                            
+                            validationHtml += '<h5 style="margin: 0 0 0.5rem 0; color: var(--text-primary); font-size: 0.875rem; font-weight: 600;">📋 Validation Report</h5>';
+                            
+                            if (validation.final_valid) {
+                                validationHtml += '<div style="color: var(--success); font-size: 0.875rem;">✅ All citations validated successfully</div>';
+                            } else {
+                                validationHtml += '<div style="color: var(--warning); font-size: 0.875rem;">⚠️ Some citations were corrected</div>';
+                            }
+                            
+                            if (validation.iterations_used > 1) {
+                                validationHtml += `<div style="color: var(--text-secondary); font-size: 0.75rem; margin-top: 0.25rem;">Used ${validation.iterations_used} validation iteration(s)</div>`;
+                            }
+                            
+                            if (validation.synthesis_was_cleaned) {
+                                validationHtml += '<div style="color: var(--text-secondary); font-size: 0.75rem; margin-top: 0.25rem;">📝 Summary was automatically refined to remove invalid citations</div>';
+                            }
+                            
+                            if (validation.total_issues_found > 0) {
+                                validationHtml += `<div style="color: var(--text-secondary); font-size: 0.75rem; margin-top: 0.25rem;">🔧 Corrected ${validation.total_issues_found} citation issue(s)</div>`;
+                            }
+                            
+                            validationHtml += '</div>';
+                            analysisContentHtml += validationHtml;
+                        }
+                        
+                        // Add custom prompt indicator if used
+                        if (customSynthesisRequirements && 
+                            customSynthesisRequirements.trim() && 
+                            customSynthesisRequirements !== defaultSynthesisRequirements) {
+                            const customPromptIndicator = '<div class="custom-prompt-indicator" style="margin-top: 1rem; padding: 0.75rem; background: var(--bg-accent); border-radius: var(--radius-md); border-left: 3px solid var(--accent);">';
+                            analysisContentHtml += customPromptIndicator + '<div style="color: var(--text-primary); font-size: 0.875rem;">⚡ Generated using custom analysis prompt</div></div>';
+                        }
+                        
+                        analysisContent.innerHTML = analysisContentHtml;
                         
                         // Store synthesis data
                         currentSynthesis = data.synthesis;
@@ -822,6 +1038,22 @@
                     analyzeBtn.disabled = false;
                 }
             });
+        }
+
+
+        // Update the lightning button state function
+        function updateLightningButtonState() {
+            const lightningBtn = document.querySelector('.lightning-btn[onclick="openCustomPromptModal()"]');
+            
+            if (customSynthesisRequirements && 
+                customSynthesisRequirements.trim() && 
+                customSynthesisRequirements !== defaultSynthesisRequirements) {
+                lightningBtn.classList.add('active');
+                lightningBtn.title = 'Custom Analysis Prompt (Active)';
+            } else {
+                lightningBtn.classList.remove('active');
+                lightningBtn.title = 'Customize Analysis Prompt';
+            }
         }
 
         // Download synthesis functionality
@@ -979,6 +1211,107 @@
         document.addEventListener('DOMContentLoaded', () => {
             setupPMIDHover();
         });
+
+        // Custom Prompt Modal Functions
+        let customSynthesisRequirements = '';
+
+        // Default synthesis requirements text
+        const defaultSynthesisRequirements = `A comprehensive synthesis organized as exactly 3 distinct paragraphs with MULTIPLE citations in each paragraph
+
+        SYNTHESIS REQUIREMENTS:
+        - Write exactly 3 distinct paragraphs separated by double line breaks
+        - Each paragraph should be 4-6 sentences long
+        - Paragraph 1: Overview and background - cite at least 4-5 relevant papers
+        - Paragraph 2: Key findings and methods - cite at least 4-5 relevant papers  
+        - Paragraph 3: Clinical implications and future directions - cite at least 3-4 relevant papers`;
+
+        function openCustomPromptModal() {
+            // Load current custom requirements or default
+            const textarea = document.getElementById('customSynthesisRequirements');
+            textarea.value = customSynthesisRequirements || defaultSynthesisRequirements;
+            
+            // Show modal
+            document.getElementById('customPromptModal').style.display = 'block';
+            
+            // Focus on textarea
+            setTimeout(() => textarea.focus(), 100);
+        }
+
+        function closeCustomPromptModal() {
+            document.getElementById('customPromptModal').style.display = 'none';
+        }
+
+        function resetCustomPrompt() {
+            document.getElementById('customSynthesisRequirements').value = defaultSynthesisRequirements;
+        }
+
+        function saveCustomPrompt() {
+            // Save the custom requirements
+            customSynthesisRequirements = document.getElementById('customSynthesisRequirements').value.trim();
+            
+            // Close modal
+            closeCustomPromptModal();
+            
+            // Update the lightning bolt button to show it's been customized
+            updateLightningButtonState();
+            
+            // Optional: Show a brief confirmation
+            showCustomPromptConfirmation();
+        }
+
+        function updateLightningButtonState() {
+            const lightningBtn = document.querySelector('.lightning-btn[onclick="openCustomPromptModal()"]');
+            
+            if (customSynthesisRequirements && customSynthesisRequirements !== defaultSynthesisRequirements) {
+                lightningBtn.classList.add('active');
+                lightningBtn.title = 'Custom Analysis Prompt (Active)';
+            } else {
+                lightningBtn.classList.remove('active');
+                lightningBtn.title = 'Customize Analysis Prompt';
+            }
+        }
+
+        function showCustomPromptConfirmation() {
+            const lightningBtn = document.querySelector('.lightning-btn[onclick="openCustomPromptModal()"]');
+            const originalTitle = lightningBtn.title;
+            
+            lightningBtn.title = 'Custom prompt saved!';
+            lightningBtn.style.animation = 'pulse 0.5s ease-in-out';
+            
+            setTimeout(() => {
+                lightningBtn.title = originalTitle;
+                lightningBtn.style.animation = '';
+            }, 2000);
+        }
+
+        // Update the AI Analysis function to use custom prompt
+        function getAnalysisPromptRequirements() {
+            return customSynthesisRequirements || defaultSynthesisRequirements;
+        }
+
+        // Close custom prompt modal when clicking outside
+        window.addEventListener('click', function(event) {
+            const customPromptModal = document.getElementById('customPromptModal');
+            
+            if (event.target === customPromptModal) {
+                closeCustomPromptModal();
+            }
+        });
+
+        // Initialize lightning button state on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            updateLightningButtonState();
+        });
+
+
+        // Help Modal Functions
+        function openHelpModal() {
+            document.getElementById('helpModal').style.display = 'block';
+        }
+
+        function closeHelpModal() {
+            document.getElementById('helpModal').style.display = 'none';
+        }
     </script>
 </body>
 </html>
