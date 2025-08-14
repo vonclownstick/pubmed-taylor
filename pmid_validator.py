@@ -46,14 +46,14 @@ class ValidationError(Exception):
 class SummaryValidator:
     """Validates PMID citations in AI-generated summaries"""
     
-    def __init__(self, openai_api_key: str, model: str = "gpt-4o-mini", custom_requirements: str = ""):
+    def __init__(self, openai_api_key: str, model: str = "gpt-5-mini", custom_requirements: str = ""):
         self.openai_api_key = openai_api_key
         
         # Validate model name
-        valid_models = ["gpt-4o-mini"]
+        valid_models = ["gpt-4o-mini","gpt-5-mini","gpt-5-nano"]
         if model not in valid_models:
-            print(f"[VALIDATOR WARNING] Unknown model '{model}', using 'gpt-4o-mini'")
-            model = "gpt-4o-mini"
+            print(f"[VALIDATOR WARNING] Unknown model '{model}', using 'gpt-5-mini'")
+            model = "gpt-5-mini"
         
         self.model = model
         self._llm_cache = {}
@@ -446,8 +446,38 @@ Cited article abstract:
             "max_tokens": min(1500, 150 * len(processed_batch)),  # Scale tokens appropriately
         }
         
-        # Add response_format only if the model supports it
-        if self.model in ["gpt-5-mini", "gpt-4o-mini", "gpt-4-turbo"]:
+        # Add response_format based on model capabilities
+        if self.model.startswith("gpt-5"):
+            # Use structured outputs for GPT-5 models
+            payload["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "CitationValidation",
+                    "strict": True,
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "citations": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {"type": "integer"},
+                                        "valid": {"type": "boolean"},
+                                        "reason": {"type": "string"}
+                                    },
+                                    "required": ["id", "valid", "reason"],
+                                    "additionalProperties": False
+                                }
+                            }
+                        },
+                        "required": ["citations"],
+                        "additionalProperties": False
+                    }
+                }
+            }
+        elif self.model in ["gpt-4o-mini", "gpt-4-turbo"]:
+            # Use legacy JSON mode for older models
             payload["response_format"] = {"type": "json_object"}
         
         batch_results = []
