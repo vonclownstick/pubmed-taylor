@@ -68,7 +68,7 @@ _load_dotenv()
 NCBI_EMAIL = os.getenv("NCBI_EMAIL", "research@example.com")
 NCBI_API_KEY = os.getenv("NCBI_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5-mini")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 ACCESS_PASSWORD = os.getenv("ACCESS_PASSWORD", "Cassowary")
 DEBUG_JOURNALS = os.getenv("DEBUG_JOURNALS", "false").lower() in ["true", "1", "yes"]
 UPDATE_MAPPINGS = os.getenv("UPDATE_MAPPINGS", "true").lower() in ["true", "1", "yes"]
