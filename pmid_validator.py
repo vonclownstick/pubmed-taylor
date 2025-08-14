@@ -46,14 +46,14 @@ class ValidationError(Exception):
 class SummaryValidator:
     """Validates PMID citations in AI-generated summaries"""
     
-    def __init__(self, openai_api_key: str, model: str = "gpt-4o-mini", custom_requirements: str = ""):
+    def __init__(self, openai_api_key: str, model: str = "gpt-5-mini", custom_requirements: str = ""):
         self.openai_api_key = openai_api_key
         
         # Validate model name
-        valid_models = ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"]
+        valid_models = ["gpt-5-mini"]
         if model not in valid_models:
-            print(f"[VALIDATOR WARNING] Unknown model '{model}', using 'gpt-4o-mini'")
-            model = "gpt-4o-mini"
+            print(f"[VALIDATOR WARNING] Unknown model '{model}', using 'gpt-5-mini'")
+            model = "gpt-5-mini"
         
         self.model = model
         self._llm_cache = {}
@@ -447,7 +447,7 @@ Cited article abstract:
         }
         
         # Add response_format only if the model supports it
-        if self.model in ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo"]:
+        if self.model in ["gpt-5-mini"]:
             payload["response_format"] = {"type": "json_object"}
         
         batch_results = []
